@@ -1,0 +1,28 @@
+{
+  "permissions": {
+    "allow": [
+      "WebSearch",
+      "WebFetch(domain:letterboxd.com)",
+      "Bash(python:*)",
+      "Bash(uv run:*)",
+      "Bash(tree:*)",
+      "WebFetch(domain:ai.google.dev)",
+      "Bash(uv pip install:*)",
+      "Bash(uv venv:*)",
+      "Bash(sqlite3:*)",
+      "Bash(.venv/bin/python:*)",
+      "Bash(source:*)",
+      "Skill(frontend-design)",
+      "WebFetch(domain:www.adurantlabs.com)",
+      "Bash(pgrep:*)",
+      "Bash(echo:*)",
+      "Bash(column -t -s '|':*)",
+      "Bash(lsof:*)",
+      "Bash(xargs kill:*)",
+      "Bash(curl:*)",
+      "Bash(python3:*)",
+      "Bash(kill:*)",
+      "Bash(pkill:*)"
+    ]
+  }
+}
