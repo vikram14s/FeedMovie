@@ -28,3 +28,8 @@ Thumbs.db
 
 # uv
 .python-version
+
+# Local documentation (not for repo)
+CLAUDE.md
+SETUP.md
+SESSION_NOTES.md
