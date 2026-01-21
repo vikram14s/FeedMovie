@@ -11,9 +11,10 @@ venv/
 ENV/
 .venv
 
-# Database
+# Database and cache
 data/feedmovie.db
 data/cache/
+backend/data/
 
 # IDE
 .vscode/
