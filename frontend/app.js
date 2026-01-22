@@ -11,10 +11,114 @@ let selectedProfiles = [];
 let generationTriggered = false;
 let totalUnshown = 0;
 
+// Auth state
+let authToken = null;
+let currentUser = null;
+
+// Onboarding state
+let onboardingMovies = [];
+let onboardingIndex = 0;
+let onboardingRatings = [];
+
 const API_URL = 'http://localhost:5000/api';
+
+// =============================================
+// AUTH HELPERS
+// =============================================
+
+function getAuthHeaders() {
+    return authToken ? { 'Authorization': `Bearer ${authToken}` } : {};
+}
+
+function saveToken(token) {
+    authToken = token;
+    localStorage.setItem('feedmovie_token', token);
+}
+
+function clearToken() {
+    authToken = null;
+    currentUser = null;
+    localStorage.removeItem('feedmovie_token');
+}
+
+// =============================================
+// INITIALIZATION
+// =============================================
 
 // Initialize on page load
 document.addEventListener('DOMContentLoaded', async () => {
+    // Check for existing token
+    const savedToken = localStorage.getItem('feedmovie_token');
+
+    if (savedToken) {
+        authToken = savedToken;
+        const user = await checkAuth();
+
+        if (user) {
+            currentUser = user;
+
+            if (!user.onboarding_completed) {
+                // Show onboarding
+                showOnboardingScreen();
+            } else {
+                // Show main app
+                showMainApp();
+            }
+        } else {
+            // Token invalid, show auth
+            clearToken();
+            showAuthScreen();
+        }
+    } else {
+        // No token, show auth
+        showAuthScreen();
+    }
+
+    setupKeyboardControls();
+});
+
+async function checkAuth() {
+    try {
+        const response = await fetch(`${API_URL}/auth/me`, {
+            headers: getAuthHeaders()
+        });
+
+        if (response.ok) {
+            const data = await response.json();
+            return data.user;
+        }
+        return null;
+    } catch (error) {
+        console.error('Auth check failed:', error);
+        return null;
+    }
+}
+
+// =============================================
+// SCREEN NAVIGATION
+// =============================================
+
+function showAuthScreen() {
+    document.getElementById('auth-screen').style.display = 'flex';
+    document.getElementById('onboarding-screen').style.display = 'none';
+    document.getElementById('main-app').style.display = 'none';
+}
+
+function showOnboardingScreen() {
+    document.getElementById('auth-screen').style.display = 'none';
+    document.getElementById('onboarding-screen').style.display = 'block';
+    document.getElementById('main-app').style.display = 'none';
+    showOnboardingPath();
+}
+
+function showMainApp() {
+    document.getElementById('auth-screen').style.display = 'none';
+    document.getElementById('onboarding-screen').style.display = 'none';
+    document.getElementById('main-app').style.display = 'block';
+    initializeMainApp();
+}
+
+async function initializeMainApp() {
     const savedGenres = localStorage.getItem('feedmovie_genres');
     const savedProfiles = localStorage.getItem('feedmovie_profiles');
 
@@ -46,9 +150,327 @@ document.addEventListener('DOMContentLoaded', async () => {
         document.getElementById('loading').style.display = 'none';
         document.getElementById('stats-bar').style.display = 'none';
     }
+}
 
-    setupKeyboardControls();
-});
+// =============================================
+// AUTH FORMS
+// =============================================
+
+function showLoginForm() {
+    document.getElementById('login-form').style.display = 'block';
+    document.getElementById('register-form').style.display = 'none';
+    document.getElementById('login-error').classList.remove('visible');
+}
+
+function showRegisterForm() {
+    document.getElementById('login-form').style.display = 'none';
+    document.getElementById('register-form').style.display = 'block';
+    document.getElementById('register-error').classList.remove('visible');
+}
+
+async function handleLogin() {
+    const email = document.getElementById('login-email').value.trim();
+    const password = document.getElementById('login-password').value;
+    const errorEl = document.getElementById('login-error');
+    const btn = document.getElementById('login-btn');
+
+    if (!email || !password) {
+        errorEl.textContent = 'Please fill in all fields';
+        errorEl.classList.add('visible');
+        return;
+    }
+
+    btn.disabled = true;
+    btn.textContent = 'Signing in...';
+
+    try {
+        const response = await fetch(`${API_URL}/auth/login`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ email, password })
+        });
+
+        const data = await response.json();
+
+        if (response.ok && data.token) {
+            saveToken(data.token);
+            currentUser = data.user;
+
+            if (!currentUser.onboarding_completed) {
+                showOnboardingScreen();
+            } else {
+                showMainApp();
+            }
+        } else {
+            errorEl.textContent = data.error || 'Login failed';
+            errorEl.classList.add('visible');
+        }
+    } catch (error) {
+        console.error('Login error:', error);
+        errorEl.textContent = 'Connection error. Please try again.';
+        errorEl.classList.add('visible');
+    } finally {
+        btn.disabled = false;
+        btn.textContent = 'Sign In';
+    }
+}
+
+async function handleRegister() {
+    const username = document.getElementById('register-username').value.trim();
+    const email = document.getElementById('register-email').value.trim();
+    const password = document.getElementById('register-password').value;
+    const errorEl = document.getElementById('register-error');
+    const btn = document.getElementById('register-btn');
+
+    if (!username || !email || !password) {
+        errorEl.textContent = 'Please fill in all fields';
+        errorEl.classList.add('visible');
+        return;
+    }
+
+    if (password.length < 6) {
+        errorEl.textContent = 'Password must be at least 6 characters';
+        errorEl.classList.add('visible');
+        return;
+    }
+
+    btn.disabled = true;
+    btn.textContent = 'Creating account...';
+
+    try {
+        const response = await fetch(`${API_URL}/auth/register`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ username, email, password })
+        });
+
+        const data = await response.json();
+
+        if (response.ok && data.token) {
+            saveToken(data.token);
+            currentUser = data.user;
+            showOnboardingScreen();
+        } else {
+            errorEl.textContent = data.error || 'Registration failed';
+            errorEl.classList.add('visible');
+        }
+    } catch (error) {
+        console.error('Registration error:', error);
+        errorEl.textContent = 'Connection error. Please try again.';
+        errorEl.classList.add('visible');
+    } finally {
+        btn.disabled = false;
+        btn.textContent = 'Create Account';
+    }
+}
+
+// =============================================
+// ONBOARDING
+// =============================================
+
+function showOnboardingPath() {
+    document.getElementById('onboarding-path').style.display = 'block';
+    document.getElementById('onboarding-letterboxd').style.display = 'none';
+    document.getElementById('onboarding-swipe').style.display = 'none';
+    document.getElementById('onboarding-loading').style.display = 'none';
+}
+
+function selectOnboardingPath(path) {
+    if (path === 'letterboxd') {
+        document.getElementById('onboarding-path').style.display = 'none';
+        document.getElementById('onboarding-letterboxd').style.display = 'block';
+    } else {
+        startSwipeOnboarding();
+    }
+}
+
+async function importLetterboxd() {
+    const username = document.getElementById('letterboxd-username').value.trim();
+    const errorEl = document.getElementById('letterboxd-error');
+    const btn = document.getElementById('import-btn');
+
+    if (!username) {
+        errorEl.textContent = 'Please enter your Letterboxd username';
+        errorEl.classList.add('visible');
+        return;
+    }
+
+    btn.disabled = true;
+    btn.textContent = 'Importing...';
+
+    try {
+        const response = await fetch(`${API_URL}/onboarding/letterboxd`, {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json',
+                ...getAuthHeaders()
+            },
+            body: JSON.stringify({ username })
+        });
+
+        const data = await response.json();
+
+        if (response.ok && data.success) {
+            await completeOnboarding();
+        } else {
+            errorEl.textContent = data.error || 'Import failed. Check your username.';
+            errorEl.classList.add('visible');
+        }
+    } catch (error) {
+        console.error('Letterboxd import error:', error);
+        errorEl.textContent = 'Connection error. Please try again.';
+        errorEl.classList.add('visible');
+    } finally {
+        btn.disabled = false;
+        btn.textContent = 'Import Ratings';
+    }
+}
+
+async function startSwipeOnboarding() {
+    document.getElementById('onboarding-path').style.display = 'none';
+    document.getElementById('onboarding-loading').style.display = 'block';
+    document.getElementById('onboarding-loading-text').textContent = 'Loading popular movies...';
+
+    try {
+        const response = await fetch(`${API_URL}/onboarding/movies`, {
+            headers: getAuthHeaders()
+        });
+
+        const data = await response.json();
+
+        if (data.success && data.movies) {
+            onboardingMovies = data.movies;
+            onboardingIndex = 0;
+            onboardingRatings = [];
+
+            document.getElementById('onboarding-loading').style.display = 'none';
+            document.getElementById('onboarding-swipe').style.display = 'block';
+
+            renderOnboardingProgress();
+            renderOnboardingCard();
+        }
+    } catch (error) {
+        console.error('Error loading onboarding movies:', error);
+    }
+}
+
+function renderOnboardingProgress() {
+    const container = document.getElementById('onboarding-progress');
+    const total = onboardingMovies.length;
+
+    container.innerHTML = Array.from({ length: total }, (_, i) => {
+        let className = 'progress-dot';
+        if (i < onboardingIndex) className += ' completed';
+        if (i === onboardingIndex) className += ' active';
+        return `<div class="${className}"></div>`;
+    }).join('');
+
+    document.getElementById('onboarding-counter').textContent =
+        `Movie ${onboardingIndex + 1} of ${total}`;
+}
+
+function renderOnboardingCard() {
+    if (onboardingIndex >= onboardingMovies.length) {
+        finishSwipeOnboarding();
+        return;
+    }
+
+    const movie = onboardingMovies[onboardingIndex];
+    const container = document.getElementById('onboarding-card-container');
+
+    container.innerHTML = `
+        <div class="onboarding-card">
+            <img src="${movie.poster_path || 'https://via.placeholder.com/160x240?text=No+Poster'}"
+                 alt="${movie.title}"
+                 class="onboarding-movie-poster">
+            <h3 class="onboarding-movie-title">${movie.title}</h3>
+            <p class="onboarding-movie-year">${movie.year || ''}</p>
+            <div class="onboarding-stars">
+                ${[1, 2, 3, 4, 5].map(star => `
+                    <span class="onboarding-star" data-star="${star}" onclick="rateOnboardingMovie(${star})">★</span>
+                `).join('')}
+            </div>
+            <button class="onboarding-skip-btn" onclick="skipOnboardingMovie()">Haven't seen it</button>
+        </div>
+    `;
+}
+
+function rateOnboardingMovie(rating) {
+    const movie = onboardingMovies[onboardingIndex];
+
+    // Visual feedback
+    const stars = document.querySelectorAll('.onboarding-star');
+    stars.forEach((star, i) => {
+        if (i < rating) {
+            star.classList.add('filled');
+        }
+    });
+
+    // Save rating
+    onboardingRatings.push({
+        tmdb_id: movie.tmdb_id,
+        rating: rating
+    });
+
+    // Next movie after brief delay
+    setTimeout(() => {
+        onboardingIndex++;
+        renderOnboardingProgress();
+        renderOnboardingCard();
+    }, 300);
+}
+
+function skipOnboardingMovie() {
+    onboardingIndex++;
+    renderOnboardingProgress();
+    renderOnboardingCard();
+}
+
+async function finishSwipeOnboarding() {
+    document.getElementById('onboarding-swipe').style.display = 'none';
+    document.getElementById('onboarding-loading').style.display = 'block';
+    document.getElementById('onboarding-loading-text').textContent = 'Saving your ratings...';
+
+    try {
+        // Save ratings if any
+        if (onboardingRatings.length > 0) {
+            await fetch(`${API_URL}/onboarding/swipe-ratings`, {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                    ...getAuthHeaders()
+                },
+                body: JSON.stringify({ ratings: onboardingRatings })
+            });
+        }
+
+        await completeOnboarding();
+    } catch (error) {
+        console.error('Error saving onboarding ratings:', error);
+    }
+}
+
+async function completeOnboarding() {
+    document.getElementById('onboarding-loading').style.display = 'block';
+    document.getElementById('onboarding-loading-text').textContent = 'Generating your personalized recommendations...';
+
+    try {
+        await fetch(`${API_URL}/onboarding/complete`, {
+            method: 'POST',
+            headers: getAuthHeaders()
+        });
+
+        // Update user state
+        if (currentUser) {
+            currentUser.onboarding_completed = true;
+        }
+
+        // Show main app
+        showMainApp();
+    } catch (error) {
+        console.error('Error completing onboarding:', error);
+    }
+}
 
 function changeGenres() {
     localStorage.removeItem('feedmovie_genres');
@@ -63,7 +485,9 @@ function changeGenres() {
 
 async function loadTasteProfiles() {
     try {
-        const response = await fetch(`${API_URL}/taste-profiles`);
+        const response = await fetch(`${API_URL}/taste-profiles`, {
+            headers: getAuthHeaders()
+        });
         const data = await response.json();
 
         if (data.success && data.profiles) {
@@ -123,7 +547,10 @@ async function saveTasteProfiles() {
     try {
         await fetch(`${API_URL}/select-profile`, {
             method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
+            headers: {
+                'Content-Type': 'application/json',
+                ...getAuthHeaders()
+            },
             body: JSON.stringify({ profile_ids: selectedProfiles })
         });
 
@@ -202,7 +629,9 @@ function skipGenreSelection() {
 async function loadRecommendations(genres = []) {
     try {
         const genreParam = genres.length > 0 ? `&genres=${genres.join(',')}` : '';
-        const response = await fetch(`${API_URL}/recommendations?limit=50${genreParam}`);
+        const response = await fetch(`${API_URL}/recommendations?limit=50${genreParam}`, {
+            headers: getAuthHeaders()
+        });
         const data = await response.json();
 
         if (data.success) {
@@ -376,7 +805,10 @@ async function swipeLeft() {
     try {
         await fetch(`${API_URL}/swipe`, {
             method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
+            headers: {
+                'Content-Type': 'application/json',
+                ...getAuthHeaders()
+            },
             body: JSON.stringify({ tmdb_id: movie.tmdb_id, action: 'left' })
         });
     } catch (error) {
@@ -410,7 +842,10 @@ async function swipeRight() {
     try {
         await fetch(`${API_URL}/swipe`, {
             method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
+            headers: {
+                'Content-Type': 'application/json',
+                ...getAuthHeaders()
+            },
             body: JSON.stringify({ tmdb_id: movie.tmdb_id, action: 'right' })
         });
     } catch (error) {
@@ -486,7 +921,9 @@ function switchTab(tab) {
 
 async function loadWatchlist() {
     try {
-        const response = await fetch(`${API_URL}/watchlist`);
+        const response = await fetch(`${API_URL}/watchlist`, {
+            headers: getAuthHeaders()
+        });
         const data = await response.json();
 
         if (data.success) {
@@ -536,7 +973,10 @@ function createWatchlistItem(movie) {
 
 async function removeFromWatchlist(tmdbId) {
     try {
-        await fetch(`${API_URL}/watchlist/${tmdbId}`, { method: 'DELETE' });
+        await fetch(`${API_URL}/watchlist/${tmdbId}`, {
+            method: 'DELETE',
+            headers: getAuthHeaders()
+        });
         loadWatchlist();
     } catch (error) {
         console.error('Error removing from watchlist:', error);
@@ -607,7 +1047,10 @@ async function submitRating() {
     try {
         await fetch(`${API_URL}/add-rating`, {
             method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
+            headers: {
+                'Content-Type': 'application/json',
+                ...getAuthHeaders()
+            },
             body: JSON.stringify({
                 tmdb_id: movie.tmdb_id,
                 title: movie.title,
@@ -648,7 +1091,10 @@ function checkPreemptiveGeneration() {
     const remaining = totalUnshown - currentIndex;
     if (remaining < 10 && !generationTriggered) {
         generationTriggered = true;
-        fetch(`${API_URL}/generate-more`, { method: 'POST' });
+        fetch(`${API_URL}/generate-more`, {
+            method: 'POST',
+            headers: getAuthHeaders()
+        });
     }
 }
 
@@ -657,11 +1103,23 @@ async function generateMoreRecommendations() {
     document.getElementById('loading').style.display = 'flex';
 
     try {
-        await fetch(`${API_URL}/generate-more`, { method: 'POST' });
+        await fetch(`${API_URL}/generate-more`, {
+            method: 'POST',
+            headers: getAuthHeaders()
+        });
         setTimeout(() => {
             loadRecommendations(selectedGenres);
         }, 3000);
     } catch (error) {
         console.error('Error generating recommendations:', error);
     }
+}
+
+// =============================================
+// LOGOUT
+// =============================================
+
+function logout() {
+    clearToken();
+    showAuthScreen();
 }

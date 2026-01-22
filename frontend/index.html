@@ -921,10 +921,395 @@
             text-align: center;
             margin-top: 12px;
         }
+
+        /* Auth Screens */
+        .auth-container {
+            min-height: 100vh;
+            display: flex;
+            flex-direction: column;
+            justify-content: center;
+            padding: 24px 20px;
+        }
+
+        .auth-logo {
+            font-size: 36px;
+            font-weight: 700;
+            color: var(--teal);
+            text-align: center;
+            margin-bottom: 8px;
+        }
+
+        .auth-tagline {
+            font-size: 14px;
+            color: var(--text-secondary);
+            text-align: center;
+            margin-bottom: 32px;
+        }
+
+        .auth-card {
+            background: var(--card-bg);
+            border-radius: 16px;
+            padding: 24px;
+            box-shadow: var(--shadow-lg);
+        }
+
+        .auth-title {
+            font-size: 20px;
+            font-weight: 700;
+            color: var(--text-primary);
+            margin-bottom: 24px;
+            text-align: center;
+        }
+
+        .form-group {
+            margin-bottom: 16px;
+        }
+
+        .form-label {
+            display: block;
+            font-size: 13px;
+            font-weight: 500;
+            color: var(--text-secondary);
+            margin-bottom: 6px;
+        }
+
+        .form-input {
+            width: 100%;
+            padding: 14px 16px;
+            border: 1px solid var(--border);
+            border-radius: 12px;
+            font-size: 15px;
+            font-family: inherit;
+            color: var(--text-primary);
+            background: var(--card-bg);
+            transition: border-color 0.2s;
+        }
+
+        .form-input:focus {
+            outline: none;
+            border-color: var(--teal);
+        }
+
+        .form-input::placeholder {
+            color: var(--text-muted);
+        }
+
+        .form-error {
+            font-size: 12px;
+            color: var(--coral);
+            margin-top: 6px;
+            display: none;
+        }
+
+        .form-error.visible {
+            display: block;
+        }
+
+        .auth-btn {
+            width: 100%;
+            padding: 14px 24px;
+            background: var(--teal);
+            color: white;
+            border: none;
+            border-radius: 12px;
+            font-size: 15px;
+            font-weight: 600;
+            cursor: pointer;
+            transition: background 0.2s;
+            margin-top: 8px;
+        }
+
+        .auth-btn:hover {
+            background: #166666;
+        }
+
+        .auth-btn:disabled {
+            background: var(--text-muted);
+            cursor: not-allowed;
+        }
+
+        .auth-switch {
+            text-align: center;
+            margin-top: 20px;
+            font-size: 14px;
+            color: var(--text-secondary);
+        }
+
+        .auth-switch-link {
+            color: var(--teal);
+            font-weight: 500;
+            cursor: pointer;
+            text-decoration: underline;
+            text-underline-offset: 2px;
+        }
+
+        .auth-switch-link:hover {
+            color: #166666;
+        }
+
+        /* Onboarding Path Selection */
+        .onboarding-option {
+            display: flex;
+            align-items: center;
+            gap: 16px;
+            padding: 20px;
+            background: var(--card-bg);
+            border: 2px solid var(--border);
+            border-radius: 16px;
+            cursor: pointer;
+            transition: all 0.2s;
+            margin-bottom: 12px;
+        }
+
+        .onboarding-option:hover {
+            border-color: var(--teal);
+        }
+
+        .onboarding-option.selected {
+            border-color: var(--teal);
+            background: var(--teal-light);
+        }
+
+        .onboarding-icon {
+            font-size: 32px;
+            flex-shrink: 0;
+        }
+
+        .onboarding-option-content {
+            flex: 1;
+        }
+
+        .onboarding-option-title {
+            font-size: 16px;
+            font-weight: 600;
+            color: var(--text-primary);
+            margin-bottom: 4px;
+        }
+
+        .onboarding-option-desc {
+            font-size: 13px;
+            color: var(--text-secondary);
+            line-height: 1.4;
+        }
+
+        /* Letterboxd Input */
+        .letterboxd-input-section {
+            margin-top: 20px;
+        }
+
+        /* Onboarding Progress */
+        .onboarding-progress {
+            display: flex;
+            justify-content: center;
+            gap: 8px;
+            margin-bottom: 20px;
+        }
+
+        .progress-dot {
+            width: 8px;
+            height: 8px;
+            border-radius: 50%;
+            background: var(--border);
+        }
+
+        .progress-dot.active {
+            background: var(--teal);
+        }
+
+        .progress-dot.completed {
+            background: var(--teal);
+        }
+
+        /* Onboarding Rating Card */
+        .onboarding-card {
+            background: var(--card-bg);
+            border-radius: 16px;
+            padding: 20px;
+            margin: 16px 20px;
+            box-shadow: var(--shadow-lg);
+            text-align: center;
+        }
+
+        .onboarding-movie-poster {
+            width: 160px;
+            height: 240px;
+            object-fit: cover;
+            border-radius: 12px;
+            margin-bottom: 16px;
+        }
+
+        .onboarding-movie-title {
+            font-size: 18px;
+            font-weight: 700;
+            color: var(--text-primary);
+            margin-bottom: 4px;
+        }
+
+        .onboarding-movie-year {
+            font-size: 14px;
+            color: var(--text-secondary);
+            margin-bottom: 16px;
+        }
+
+        .onboarding-stars {
+            display: flex;
+            justify-content: center;
+            gap: 8px;
+            margin-bottom: 16px;
+        }
+
+        .onboarding-star {
+            font-size: 32px;
+            color: var(--border);
+            cursor: pointer;
+            transition: color 0.2s, transform 0.1s;
+        }
+
+        .onboarding-star:hover {
+            transform: scale(1.1);
+        }
+
+        .onboarding-star.filled {
+            color: var(--teal);
+        }
+
+        .onboarding-skip-btn {
+            background: none;
+            border: none;
+            color: var(--text-muted);
+            font-size: 14px;
+            cursor: pointer;
+            padding: 8px 16px;
+        }
+
+        .onboarding-skip-btn:hover {
+            color: var(--text-secondary);
+        }
+
+        .onboarding-counter {
+            font-size: 13px;
+            color: var(--text-secondary);
+            margin-top: 12px;
+        }
     </style>
 </head>
 <body>
-    <div class="container">
+    <!-- Auth Screen -->
+    <div id="auth-screen" class="auth-container" style="display: none;">
+        <div class="auth-logo">feedmovie</div>
+        <p class="auth-tagline">AI-powered movie recommendations, just for you</p>
+
+        <!-- Login Form -->
+        <div id="login-form" class="auth-card">
+            <h2 class="auth-title">Welcome back</h2>
+            <div class="form-group">
+                <label class="form-label">Email</label>
+                <input type="email" id="login-email" class="form-input" placeholder="you@example.com">
+            </div>
+            <div class="form-group">
+                <label class="form-label">Password</label>
+                <input type="password" id="login-password" class="form-input" placeholder="Enter your password">
+            </div>
+            <p id="login-error" class="form-error"></p>
+            <button onclick="handleLogin()" class="auth-btn" id="login-btn">Sign In</button>
+            <p class="auth-switch">
+                Don't have an account? <span class="auth-switch-link" onclick="showRegisterForm()">Sign up</span>
+            </p>
+        </div>
+
+        <!-- Register Form -->
+        <div id="register-form" class="auth-card" style="display: none;">
+            <h2 class="auth-title">Create account</h2>
+            <div class="form-group">
+                <label class="form-label">Username</label>
+                <input type="text" id="register-username" class="form-input" placeholder="Choose a username">
+            </div>
+            <div class="form-group">
+                <label class="form-label">Email</label>
+                <input type="email" id="register-email" class="form-input" placeholder="you@example.com">
+            </div>
+            <div class="form-group">
+                <label class="form-label">Password</label>
+                <input type="password" id="register-password" class="form-input" placeholder="Create a password">
+            </div>
+            <p id="register-error" class="form-error"></p>
+            <button onclick="handleRegister()" class="auth-btn" id="register-btn">Create Account</button>
+            <p class="auth-switch">
+                Already have an account? <span class="auth-switch-link" onclick="showLoginForm()">Sign in</span>
+            </p>
+        </div>
+    </div>
+
+    <!-- Onboarding Screen -->
+    <div id="onboarding-screen" style="display: none;">
+        <!-- Path Selection -->
+        <div id="onboarding-path" class="container">
+            <div class="selection-card">
+                <h2 class="selection-title">Let's personalize your experience</h2>
+                <p class="selection-subtitle">How would you like to get started?</p>
+
+                <div class="onboarding-option" onclick="selectOnboardingPath('letterboxd')">
+                    <div class="onboarding-icon">🎬</div>
+                    <div class="onboarding-option-content">
+                        <div class="onboarding-option-title">I have Letterboxd</div>
+                        <div class="onboarding-option-desc">Import your ratings automatically for instant personalized recommendations</div>
+                    </div>
+                </div>
+
+                <div class="onboarding-option" onclick="selectOnboardingPath('fresh')">
+                    <div class="onboarding-icon">✨</div>
+                    <div class="onboarding-option-content">
+                        <div class="onboarding-option-title">Start Fresh</div>
+                        <div class="onboarding-option-desc">Rate 20 popular movies to help us learn your taste</div>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Letterboxd Import -->
+        <div id="onboarding-letterboxd" class="container" style="display: none;">
+            <div class="selection-card">
+                <h2 class="selection-title">Import from Letterboxd</h2>
+                <p class="selection-subtitle">Enter your Letterboxd username to import your ratings</p>
+
+                <div class="form-group">
+                    <label class="form-label">Letterboxd Username</label>
+                    <input type="text" id="letterboxd-username" class="form-input" placeholder="your-username">
+                </div>
+                <p id="letterboxd-error" class="form-error"></p>
+
+                <div class="selection-actions">
+                    <button onclick="importLetterboxd()" class="btn-primary" id="import-btn">Import Ratings</button>
+                    <button onclick="showOnboardingPath()" class="btn-link">Go back</button>
+                </div>
+            </div>
+        </div>
+
+        <!-- Swipe Onboarding -->
+        <div id="onboarding-swipe" class="container" style="display: none;">
+            <header class="header">
+                <div class="header-top">
+                    <div class="logo">feedmovie</div>
+                </div>
+            </header>
+
+            <div class="onboarding-progress" id="onboarding-progress"></div>
+
+            <div id="onboarding-card-container"></div>
+
+            <p class="onboarding-counter" id="onboarding-counter">Movie 1 of 20</p>
+        </div>
+
+        <!-- Onboarding Loading -->
+        <div id="onboarding-loading" class="container" style="display: none;">
+            <div class="loading">
+                <div class="spinner"></div>
+                <p class="loading-text" id="onboarding-loading-text">Setting up your profile...</p>
+            </div>
+        </div>
+    </div>
+
+    <div class="container" id="main-app" style="display: none;">
         <!-- Header -->
         <header class="header">
             <div class="header-top">
