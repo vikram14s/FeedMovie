@@ -75,6 +75,54 @@ def search_movie(title: str, year: Optional[int] = None) -> Optional[Dict[str, A
         return None
 
 
+def search_movies(query: str, limit: int = 20) -> List[Dict[str, Any]]:
+    """
+    Search for movies by query, return list of results with basic info.
+
+    Returns:
+        List of dicts with: tmdb_id, title, year, poster_path, overview, genres
+    """
+    if not TMDB_API_KEY:
+        raise ValueError("TMDB_API_KEY not set in .env file")
+
+    cache_key = f"search_multi:{query}:{limit}"
+    if cache_key in cache:
+        return cache[cache_key]
+
+    time.sleep(0.25)  # Rate limiting
+
+    try:
+        response = requests.get(
+            f"{TMDB_BASE_URL}/search/movie",
+            params={
+                'api_key': TMDB_API_KEY,
+                'query': query,
+                'page': 1
+            }
+        )
+        response.raise_for_status()
+        data = response.json()
+
+        results = []
+        for movie in data['results'][:limit]:
+            results.append({
+                'tmdb_id': movie['id'],
+                'title': movie['title'],
+                'year': int(movie['release_date'][:4]) if movie.get('release_date') else None,
+                'poster_path': f"{IMAGE_BASE_URL}{movie['poster_path']}" if movie.get('poster_path') else None,
+                'overview': movie.get('overview', ''),
+                'genre_ids': movie.get('genre_ids', [])
+            })
+
+        # Cache for 1 hour
+        cache.set(cache_key, results, expire=3600)
+        return results
+
+    except requests.RequestException as e:
+        print(f"Error searching for '{query}': {e}")
+        return []
+
+
 def get_movie_details(tmdb_id: int) -> Dict[str, Any]:
     """
     Get detailed movie information including streaming providers.

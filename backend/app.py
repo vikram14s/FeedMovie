@@ -9,8 +9,12 @@ from flask_cors import CORS
 from database import (
     get_top_recommendations, record_swipe, get_movie_by_tmdb_id,
     add_movie, add_rating, get_watchlist, remove_from_watchlist, get_connection,
-    create_user, get_user_by_email, get_user_by_id, update_user_onboarding,
-    get_onboarding_movies, init_database
+    create_user, get_user_by_email, get_user_by_id, get_user_by_username,
+    update_user_onboarding, get_onboarding_movies, init_database,
+    # Social features
+    create_or_update_review, get_user_reviews, get_movie_reviews,
+    create_activity, get_friends_activity, get_user_activity,
+    like_activity, unlike_activity, update_user_profile, get_user_stats
 )
 from auth import hash_password, verify_password, create_token, require_auth, optional_auth
 from datetime import datetime
@@ -834,6 +838,539 @@ def get_swipe_analytics():
         })
 
     except Exception as e:
+        return jsonify({
+            'success': False,
+            'error': str(e)
+        }), 500
+
+
+# ============================================================
+# MOVIE SEARCH
+# ============================================================
+
+@app.route('/api/movies/search', methods=['GET'])
+@require_auth
+def search_movies(current_user):
+    """
+    Search for movies via TMDB.
+
+    Query params:
+    - q: Search query (required)
+    """
+    try:
+        query = request.args.get('q', '').strip()
+        if not query:
+            return jsonify({
+                'success': False,
+                'error': 'Search query is required'
+            }), 400
+
+        # Search TMDB
+        results = tmdb_client.search_movies(query, limit=20)
+
+        return jsonify({
+            'success': True,
+            'count': len(results),
+            'results': results
+        })
+
+    except Exception as e:
+        print(f"Search error: {e}")
+        return jsonify({
+            'success': False,
+            'error': str(e)
+        }), 500
+
+
+@app.route('/api/movies/<int:tmdb_id>', methods=['GET'])
+@optional_auth
+def get_movie_details(tmdb_id, current_user):
+    """Get detailed movie info."""
+    try:
+        # Check local DB first
+        movie = get_movie_by_tmdb_id(tmdb_id)
+
+        if not movie:
+            # Fetch from TMDB
+            movie_data = tmdb_client.get_movie_details(tmdb_id)
+            if not movie_data:
+                return jsonify({
+                    'success': False,
+                    'error': 'Movie not found'
+                }), 404
+
+            # Save to DB for future
+            movie_id = add_movie(
+                tmdb_id=movie_data['tmdb_id'],
+                title=movie_data['title'],
+                year=movie_data['year'],
+                genres=movie_data.get('genres', []),
+                poster_path=movie_data.get('poster_path'),
+                streaming_providers=movie_data.get('streaming_providers', {}),
+                overview=movie_data.get('overview', ''),
+                tmdb_rating=movie_data.get('tmdb_rating')
+            )
+            movie = get_movie_by_tmdb_id(tmdb_id)
+
+        return jsonify({
+            'success': True,
+            'movie': movie
+        })
+
+    except Exception as e:
+        return jsonify({
+            'success': False,
+            'error': str(e)
+        }), 500
+
+
+# ============================================================
+# REVIEWS
+# ============================================================
+
+@app.route('/api/reviews', methods=['POST'])
+@require_auth
+def create_review(current_user):
+    """
+    Create or update a review for a movie.
+    Also creates activity entry.
+
+    Body:
+    {
+        "tmdb_id": 123,
+        "rating": 4.5,
+        "review_text": "Great movie!" (optional)
+    }
+    """
+    try:
+        data = request.get_json()
+        tmdb_id = data.get('tmdb_id')
+        rating = data.get('rating')
+        review_text = data.get('review_text', '').strip() or None
+        user_id = current_user['user_id']
+
+        if not tmdb_id or rating is None:
+            return jsonify({
+                'success': False,
+                'error': 'tmdb_id and rating are required'
+            }), 400
+
+        if rating < 0.5 or rating > 5.0:
+            return jsonify({
+                'success': False,
+                'error': 'Rating must be between 0.5 and 5.0'
+            }), 400
+
+        # Get or create movie in database
+        movie = get_movie_by_tmdb_id(tmdb_id)
+        if not movie:
+            # Fetch from TMDB
+            movie_data = tmdb_client.get_movie_details(tmdb_id)
+            if not movie_data:
+                return jsonify({
+                    'success': False,
+                    'error': 'Movie not found'
+                }), 404
+
+            movie_id = add_movie(
+                tmdb_id=movie_data['tmdb_id'],
+                title=movie_data['title'],
+                year=movie_data['year'],
+                genres=movie_data.get('genres', []),
+                poster_path=movie_data.get('poster_path'),
+                streaming_providers=movie_data.get('streaming_providers', {}),
+                overview=movie_data.get('overview', ''),
+                tmdb_rating=movie_data.get('tmdb_rating')
+            )
+        else:
+            movie_id = movie['id']
+
+        # Create/update review
+        review_id = create_or_update_review(user_id, movie_id, rating, review_text)
+
+        # Create activity entry
+        action_type = 'reviewed' if review_text else 'rated'
+        create_activity(user_id, action_type, movie_id, rating, review_text)
+
+        # Also add to ratings table for recommendation engine
+        today = datetime.now().strftime('%Y-%m-%d')
+        add_rating(movie_id, rating, watched_date=today, user_id=user_id)
+
+        return jsonify({
+            'success': True,
+            'review_id': review_id,
+            'message': f'Review saved for movie {tmdb_id}'
+        })
+
+    except Exception as e:
+        print(f"Error creating review: {e}")
+        return jsonify({
+            'success': False,
+            'error': str(e)
+        }), 500
+
+
+@app.route('/api/reviews/user/<int:user_id>', methods=['GET'])
+@optional_auth
+def get_reviews_by_user(user_id, current_user):
+    """Get reviews by a specific user."""
+    try:
+        limit = int(request.args.get('limit', 50))
+        reviews = get_user_reviews(user_id, limit)
+
+        return jsonify({
+            'success': True,
+            'count': len(reviews),
+            'reviews': reviews
+        })
+
+    except Exception as e:
+        return jsonify({
+            'success': False,
+            'error': str(e)
+        }), 500
+
+
+@app.route('/api/reviews/movie/<int:tmdb_id>', methods=['GET'])
+@optional_auth
+def get_reviews_for_movie(tmdb_id, current_user):
+    """Get reviews for a specific movie."""
+    try:
+        movie = get_movie_by_tmdb_id(tmdb_id)
+        if not movie:
+            return jsonify({
+                'success': True,
+                'count': 0,
+                'reviews': []
+            })
+
+        limit = int(request.args.get('limit', 50))
+        reviews = get_movie_reviews(movie['id'], limit)
+
+        return jsonify({
+            'success': True,
+            'count': len(reviews),
+            'reviews': reviews
+        })
+
+    except Exception as e:
+        return jsonify({
+            'success': False,
+            'error': str(e)
+        }), 500
+
+
+# ============================================================
+# ACTIVITY FEED
+# ============================================================
+
+@app.route('/api/feed', methods=['GET'])
+@require_auth
+def get_feed(current_user):
+    """
+    Get activity feed from friends.
+
+    Query params:
+    - limit: Number of items (default: 50)
+    - offset: Pagination offset (default: 0)
+    """
+    try:
+        user_id = current_user['user_id']
+        limit = int(request.args.get('limit', 50))
+        offset = int(request.args.get('offset', 0))
+
+        activities = get_friends_activity(user_id, limit, offset)
+
+        return jsonify({
+            'success': True,
+            'count': len(activities),
+            'activities': activities
+        })
+
+    except Exception as e:
+        print(f"Feed error: {e}")
+        return jsonify({
+            'success': False,
+            'error': str(e)
+        }), 500
+
+
+@app.route('/api/feed/<int:activity_id>/like', methods=['POST'])
+@require_auth
+def like_activity_endpoint(activity_id, current_user):
+    """Like an activity."""
+    try:
+        user_id = current_user['user_id']
+        success = like_activity(user_id, activity_id)
+
+        return jsonify({
+            'success': True,
+            'liked': success,
+            'message': 'Activity liked' if success else 'Already liked'
+        })
+
+    except Exception as e:
+        return jsonify({
+            'success': False,
+            'error': str(e)
+        }), 500
+
+
+@app.route('/api/feed/<int:activity_id>/like', methods=['DELETE'])
+@require_auth
+def unlike_activity_endpoint(activity_id, current_user):
+    """Unlike an activity."""
+    try:
+        user_id = current_user['user_id']
+        success = unlike_activity(user_id, activity_id)
+
+        return jsonify({
+            'success': True,
+            'unliked': success
+        })
+
+    except Exception as e:
+        return jsonify({
+            'success': False,
+            'error': str(e)
+        }), 500
+
+
+@app.route('/api/feed/<int:activity_id>/watchlist', methods=['POST'])
+@require_auth
+def add_to_watchlist_from_feed(activity_id, current_user):
+    """Add a movie from a feed activity to user's watchlist."""
+    try:
+        user_id = current_user['user_id']
+
+        # Get the activity to find the movie
+        conn = get_connection()
+        cursor = conn.cursor()
+        cursor.execute('''
+            SELECT movie_id FROM activity WHERE id = ?
+        ''', (activity_id,))
+        row = cursor.fetchone()
+        conn.close()
+
+        if not row:
+            return jsonify({
+                'success': False,
+                'error': 'Activity not found'
+            }), 404
+
+        movie_id = row['movie_id']
+
+        # Get movie tmdb_id
+        conn = get_connection()
+        cursor = conn.cursor()
+        cursor.execute('SELECT tmdb_id, title FROM movies WHERE id = ?', (movie_id,))
+        movie = cursor.fetchone()
+        conn.close()
+
+        if not movie:
+            return jsonify({
+                'success': False,
+                'error': 'Movie not found'
+            }), 404
+
+        # Add recommendation entry with swipe_action = 'right' to add to watchlist
+        from database import add_recommendation
+        add_recommendation(movie_id, 'feed', 0.8, 'Added from friend activity', user_id)
+        record_swipe(movie['tmdb_id'], 'right', user_id)
+
+        # Create activity for this action
+        create_activity(user_id, 'watchlist_add', movie_id)
+
+        return jsonify({
+            'success': True,
+            'message': f'Added {movie["title"]} to watchlist'
+        })
+
+    except Exception as e:
+        print(f"Error adding to watchlist from feed: {e}")
+        return jsonify({
+            'success': False,
+            'error': str(e)
+        }), 500
+
+
+# ============================================================
+# USER PROFILE
+# ============================================================
+
+@app.route('/api/profile', methods=['GET'])
+@require_auth
+def get_own_profile(current_user):
+    """Get current user's profile with stats."""
+    try:
+        user_id = current_user['user_id']
+        user = get_user_by_id(user_id)
+
+        if not user:
+            return jsonify({
+                'success': False,
+                'error': 'User not found'
+            }), 404
+
+        stats = get_user_stats(user_id)
+        recent_activity = get_user_activity(user_id, limit=10)
+
+        return jsonify({
+            'success': True,
+            'profile': {
+                'id': user['id'],
+                'username': user['username'],
+                'email': user['email'],
+                'bio': user.get('bio'),
+                'profile_picture_url': user.get('profile_picture_url'),
+                'letterboxd_username': user.get('letterboxd_username'),
+                'stats': stats,
+                'recent_activity': recent_activity
+            }
+        })
+
+    except Exception as e:
+        print(f"Profile error: {e}")
+        return jsonify({
+            'success': False,
+            'error': str(e)
+        }), 500
+
+
+@app.route('/api/profile/<username>', methods=['GET'])
+@optional_auth
+def get_user_profile(username, current_user):
+    """Get a user's public profile."""
+    try:
+        user = get_user_by_username(username)
+
+        if not user:
+            return jsonify({
+                'success': False,
+                'error': 'User not found'
+            }), 404
+
+        stats = get_user_stats(user['id'])
+        recent_activity = get_user_activity(user['id'], limit=10)
+
+        return jsonify({
+            'success': True,
+            'profile': {
+                'id': user['id'],
+                'username': user['username'],
+                'bio': user.get('bio'),
+                'profile_picture_url': user.get('profile_picture_url'),
+                'letterboxd_username': user.get('letterboxd_username'),
+                'stats': stats,
+                'recent_activity': recent_activity
+            }
+        })
+
+    except Exception as e:
+        return jsonify({
+            'success': False,
+            'error': str(e)
+        }), 500
+
+
+@app.route('/api/profile', methods=['PUT'])
+@require_auth
+def update_profile(current_user):
+    """
+    Update current user's profile.
+
+    Body:
+    {
+        "bio": "Movie enthusiast...",
+        "profile_picture_url": "https://..."
+    }
+    """
+    try:
+        user_id = current_user['user_id']
+        data = request.get_json()
+
+        bio = data.get('bio')
+        profile_picture_url = data.get('profile_picture_url')
+
+        update_user_profile(user_id, bio=bio, profile_picture_url=profile_picture_url)
+
+        return jsonify({
+            'success': True,
+            'message': 'Profile updated'
+        })
+
+    except Exception as e:
+        return jsonify({
+            'success': False,
+            'error': str(e)
+        }), 500
+
+
+# ============================================================
+# WATCHLIST MARK SEEN
+# ============================================================
+
+@app.route('/api/watchlist/<int:tmdb_id>/seen', methods=['POST'])
+@require_auth
+def mark_watchlist_seen(tmdb_id, current_user):
+    """
+    Mark a watchlist movie as seen with rating and optional review.
+
+    Body:
+    {
+        "rating": 4.5,
+        "review_text": "Finally watched it!" (optional)
+    }
+    """
+    try:
+        data = request.get_json()
+        rating = data.get('rating')
+        review_text = data.get('review_text', '').strip() or None
+        user_id = current_user['user_id']
+
+        if rating is None:
+            return jsonify({
+                'success': False,
+                'error': 'Rating is required'
+            }), 400
+
+        if rating < 0.5 or rating > 5.0:
+            return jsonify({
+                'success': False,
+                'error': 'Rating must be between 0.5 and 5.0'
+            }), 400
+
+        # Get movie from database
+        movie = get_movie_by_tmdb_id(tmdb_id)
+        if not movie:
+            return jsonify({
+                'success': False,
+                'error': 'Movie not found'
+            }), 404
+
+        movie_id = movie['id']
+
+        # Create review
+        create_or_update_review(user_id, movie_id, rating, review_text)
+
+        # Create activity entry
+        action_type = 'reviewed' if review_text else 'rated'
+        create_activity(user_id, action_type, movie_id, rating, review_text)
+
+        # Add rating for recommendation engine
+        today = datetime.now().strftime('%Y-%m-%d')
+        add_rating(movie_id, rating, watched_date=today, user_id=user_id)
+
+        # Remove from watchlist (set swipe_action to null)
+        remove_from_watchlist(tmdb_id, user_id)
+
+        return jsonify({
+            'success': True,
+            'message': f'Marked {movie["title"]} as seen with rating {rating}'
+        })
+
+    except Exception as e:
+        print(f"Error marking watchlist seen: {e}")
         return jsonify({
             'success': False,
             'error': str(e)

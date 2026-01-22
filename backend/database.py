@@ -246,6 +246,49 @@ def init_database():
         )
     ''')
 
+    # Reviews table: User reviews with optional text
+    cursor.execute('''
+        CREATE TABLE IF NOT EXISTS reviews (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            user_id INTEGER NOT NULL,
+            movie_id INTEGER NOT NULL,
+            rating REAL NOT NULL,
+            review_text TEXT,
+            created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+            FOREIGN KEY (user_id) REFERENCES users(id),
+            FOREIGN KEY (movie_id) REFERENCES movies(id),
+            UNIQUE(user_id, movie_id)
+        )
+    ''')
+
+    # Activity feed table: Track all user actions
+    cursor.execute('''
+        CREATE TABLE IF NOT EXISTS activity (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            user_id INTEGER NOT NULL,
+            action_type TEXT NOT NULL,
+            movie_id INTEGER NOT NULL,
+            rating REAL,
+            review_text TEXT,
+            created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+            FOREIGN KEY (user_id) REFERENCES users(id),
+            FOREIGN KEY (movie_id) REFERENCES movies(id)
+        )
+    ''')
+
+    # Activity likes table: Users liking friend activity
+    cursor.execute('''
+        CREATE TABLE IF NOT EXISTS activity_likes (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            user_id INTEGER NOT NULL,
+            activity_id INTEGER NOT NULL,
+            created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+            FOREIGN KEY (user_id) REFERENCES users(id),
+            FOREIGN KEY (activity_id) REFERENCES activity(id),
+            UNIQUE(user_id, activity_id)
+        )
+    ''')
+
     # Set default settings
     cursor.execute('''
         INSERT OR IGNORE INTO settings (key, value)
@@ -310,6 +353,26 @@ def run_migrations():
         print("Running migration: Adding user_id to user_taste_profiles table...")
         try:
             cursor.execute('ALTER TABLE user_taste_profiles ADD COLUMN user_id INTEGER REFERENCES users(id)')
+            conn.commit()
+        except sqlite3.OperationalError:
+            pass
+
+    # Check users table for bio and profile_picture_url columns
+    cursor.execute("PRAGMA table_info(users)")
+    columns = [col[1] for col in cursor.fetchall()]
+
+    if 'bio' not in columns:
+        print("Running migration: Adding bio to users table...")
+        try:
+            cursor.execute('ALTER TABLE users ADD COLUMN bio TEXT')
+            conn.commit()
+        except sqlite3.OperationalError:
+            pass
+
+    if 'profile_picture_url' not in columns:
+        print("Running migration: Adding profile_picture_url to users table...")
+        try:
+            cursor.execute('ALTER TABLE users ADD COLUMN profile_picture_url TEXT')
             conn.commit()
         except sqlite3.OperationalError:
             pass
@@ -911,6 +974,339 @@ def get_onboarding_movies_count() -> int:
 
     conn.close()
     return count
+
+
+# ============================================================
+# REVIEWS
+# ============================================================
+
+def create_or_update_review(user_id: int, movie_id: int, rating: float,
+                            review_text: Optional[str] = None) -> int:
+    """Create or update a review. Returns review_id."""
+    conn = get_connection()
+    cursor = conn.cursor()
+
+    cursor.execute('''
+        INSERT INTO reviews (user_id, movie_id, rating, review_text)
+        VALUES (?, ?, ?, ?)
+        ON CONFLICT(user_id, movie_id) DO UPDATE SET
+            rating = excluded.rating,
+            review_text = excluded.review_text,
+            created_at = CURRENT_TIMESTAMP
+    ''', (user_id, movie_id, rating, review_text))
+
+    review_id = cursor.lastrowid
+    conn.commit()
+    conn.close()
+    return review_id
+
+
+def get_user_reviews(user_id: int, limit: int = 50) -> List[Dict[str, Any]]:
+    """Get reviews by a user with movie details."""
+    conn = get_connection()
+    cursor = conn.cursor()
+
+    cursor.execute('''
+        SELECT r.id, r.rating, r.review_text, r.created_at,
+               m.tmdb_id, m.title, m.year, m.poster_path, m.genres
+        FROM reviews r
+        JOIN movies m ON r.movie_id = m.id
+        WHERE r.user_id = ?
+        ORDER BY r.created_at DESC
+        LIMIT ?
+    ''', (user_id, limit))
+
+    reviews = []
+    for row in cursor.fetchall():
+        reviews.append({
+            'id': row['id'],
+            'rating': row['rating'],
+            'review_text': row['review_text'],
+            'created_at': row['created_at'],
+            'movie': {
+                'tmdb_id': row['tmdb_id'],
+                'title': row['title'],
+                'year': row['year'],
+                'poster_path': row['poster_path'],
+                'genres': json.loads(row['genres']) if row['genres'] else []
+            }
+        })
+
+    conn.close()
+    return reviews
+
+
+def get_movie_reviews(movie_id: int, limit: int = 50) -> List[Dict[str, Any]]:
+    """Get reviews for a movie with user details."""
+    conn = get_connection()
+    cursor = conn.cursor()
+
+    cursor.execute('''
+        SELECT r.id, r.rating, r.review_text, r.created_at,
+               u.id as user_id, u.username, u.profile_picture_url
+        FROM reviews r
+        JOIN users u ON r.user_id = u.id
+        WHERE r.movie_id = ?
+        ORDER BY r.created_at DESC
+        LIMIT ?
+    ''', (movie_id, limit))
+
+    reviews = []
+    for row in cursor.fetchall():
+        reviews.append({
+            'id': row['id'],
+            'rating': row['rating'],
+            'review_text': row['review_text'],
+            'created_at': row['created_at'],
+            'user': {
+                'id': row['user_id'],
+                'username': row['username'],
+                'profile_picture_url': row['profile_picture_url']
+            }
+        })
+
+    conn.close()
+    return reviews
+
+
+# ============================================================
+# ACTIVITY FEED
+# ============================================================
+
+def create_activity(user_id: int, action_type: str, movie_id: int,
+                   rating: Optional[float] = None, review_text: Optional[str] = None) -> int:
+    """Create an activity entry. Returns activity_id."""
+    conn = get_connection()
+    cursor = conn.cursor()
+
+    cursor.execute('''
+        INSERT INTO activity (user_id, action_type, movie_id, rating, review_text)
+        VALUES (?, ?, ?, ?, ?)
+    ''', (user_id, action_type, movie_id, rating, review_text))
+
+    activity_id = cursor.lastrowid
+    conn.commit()
+    conn.close()
+    return activity_id
+
+
+def get_friends_activity(user_id: int, limit: int = 50, offset: int = 0) -> List[Dict[str, Any]]:
+    """Get activity feed from user's friends."""
+    conn = get_connection()
+    cursor = conn.cursor()
+
+    # Get activity from friends (users in the friends table for this user)
+    cursor.execute('''
+        SELECT a.id, a.action_type, a.rating, a.review_text, a.created_at,
+               u.id as user_id, u.username, u.profile_picture_url,
+               m.tmdb_id, m.title, m.year, m.poster_path, m.genres,
+               m.tmdb_rating, m.overview,
+               (SELECT COUNT(*) FROM activity_likes al WHERE al.activity_id = a.id) as like_count,
+               (SELECT COUNT(*) FROM activity_likes al WHERE al.activity_id = a.id AND al.user_id = ?) as user_liked
+        FROM activity a
+        JOIN users u ON a.user_id = u.id
+        JOIN movies m ON a.movie_id = m.id
+        WHERE a.user_id IN (
+            SELECT u2.id FROM friends f
+            JOIN users u2 ON f.letterboxd_username = u2.letterboxd_username
+            WHERE f.user_id = ?
+        )
+        OR a.user_id IN (
+            SELECT u2.id FROM friends f
+            JOIN users u2 ON LOWER(f.name) = LOWER(u2.username)
+            WHERE f.user_id = ?
+        )
+        ORDER BY a.created_at DESC
+        LIMIT ? OFFSET ?
+    ''', (user_id, user_id, user_id, limit, offset))
+
+    activities = []
+    for row in cursor.fetchall():
+        activities.append({
+            'id': row['id'],
+            'action_type': row['action_type'],
+            'rating': row['rating'],
+            'review_text': row['review_text'],
+            'created_at': row['created_at'],
+            'like_count': row['like_count'],
+            'user_liked': row['user_liked'] > 0,
+            'user': {
+                'id': row['user_id'],
+                'username': row['username'],
+                'profile_picture_url': row['profile_picture_url']
+            },
+            'movie': {
+                'tmdb_id': row['tmdb_id'],
+                'title': row['title'],
+                'year': row['year'],
+                'poster_path': row['poster_path'],
+                'genres': json.loads(row['genres']) if row['genres'] else [],
+                'tmdb_rating': row['tmdb_rating'],
+                'overview': row['overview']
+            }
+        })
+
+    conn.close()
+    return activities
+
+
+def get_user_activity(user_id: int, limit: int = 20) -> List[Dict[str, Any]]:
+    """Get activity for a specific user (for profile page)."""
+    conn = get_connection()
+    cursor = conn.cursor()
+
+    cursor.execute('''
+        SELECT a.id, a.action_type, a.rating, a.review_text, a.created_at,
+               m.tmdb_id, m.title, m.year, m.poster_path
+        FROM activity a
+        JOIN movies m ON a.movie_id = m.id
+        WHERE a.user_id = ?
+        ORDER BY a.created_at DESC
+        LIMIT ?
+    ''', (user_id, limit))
+
+    activities = []
+    for row in cursor.fetchall():
+        activities.append({
+            'id': row['id'],
+            'action_type': row['action_type'],
+            'rating': row['rating'],
+            'review_text': row['review_text'],
+            'created_at': row['created_at'],
+            'movie': {
+                'tmdb_id': row['tmdb_id'],
+                'title': row['title'],
+                'year': row['year'],
+                'poster_path': row['poster_path']
+            }
+        })
+
+    conn.close()
+    return activities
+
+
+# ============================================================
+# ACTIVITY LIKES
+# ============================================================
+
+def like_activity(user_id: int, activity_id: int) -> bool:
+    """Like an activity. Returns True if successful."""
+    conn = get_connection()
+    cursor = conn.cursor()
+
+    try:
+        cursor.execute('''
+            INSERT INTO activity_likes (user_id, activity_id)
+            VALUES (?, ?)
+        ''', (user_id, activity_id))
+        conn.commit()
+        return True
+    except sqlite3.IntegrityError:
+        return False  # Already liked
+    finally:
+        conn.close()
+
+
+def unlike_activity(user_id: int, activity_id: int) -> bool:
+    """Unlike an activity. Returns True if something was deleted."""
+    conn = get_connection()
+    cursor = conn.cursor()
+
+    cursor.execute('''
+        DELETE FROM activity_likes
+        WHERE user_id = ? AND activity_id = ?
+    ''', (user_id, activity_id))
+
+    deleted = cursor.rowcount > 0
+    conn.commit()
+    conn.close()
+    return deleted
+
+
+# ============================================================
+# USER PROFILE
+# ============================================================
+
+def update_user_profile(user_id: int, bio: Optional[str] = None,
+                        profile_picture_url: Optional[str] = None) -> bool:
+    """Update user profile fields."""
+    conn = get_connection()
+    cursor = conn.cursor()
+
+    updates = []
+    params = []
+
+    if bio is not None:
+        updates.append("bio = ?")
+        params.append(bio)
+
+    if profile_picture_url is not None:
+        updates.append("profile_picture_url = ?")
+        params.append(profile_picture_url)
+
+    if not updates:
+        conn.close()
+        return False
+
+    params.append(user_id)
+    cursor.execute(f'''
+        UPDATE users SET {", ".join(updates)} WHERE id = ?
+    ''', params)
+
+    conn.commit()
+    conn.close()
+    return True
+
+
+def get_user_stats(user_id: int) -> Dict[str, Any]:
+    """Get user stats for profile page."""
+    conn = get_connection()
+    cursor = conn.cursor()
+
+    # Get movie count and average rating from reviews
+    cursor.execute('''
+        SELECT COUNT(*) as movie_count, AVG(rating) as avg_rating
+        FROM reviews WHERE user_id = ?
+    ''', (user_id,))
+    row = cursor.fetchone()
+    movie_count = row['movie_count'] or 0
+    avg_rating = round(row['avg_rating'], 1) if row['avg_rating'] else 0
+
+    # Get favorite genres (most common from reviewed movies)
+    cursor.execute('''
+        SELECT m.genres
+        FROM reviews r
+        JOIN movies m ON r.movie_id = m.id
+        WHERE r.user_id = ?
+    ''', (user_id,))
+
+    genre_counts = {}
+    for row in cursor.fetchall():
+        genres = json.loads(row['genres']) if row['genres'] else []
+        for genre in genres:
+            genre_counts[genre] = genre_counts.get(genre, 0) + 1
+
+    # Get top 3 genres
+    sorted_genres = sorted(genre_counts.items(), key=lambda x: x[1], reverse=True)
+    favorite_genres = [g[0] for g in sorted_genres[:3]]
+
+    # Get watchlist count
+    cursor.execute('''
+        SELECT COUNT(DISTINCT m.id) as watchlist_count
+        FROM recommendations r
+        JOIN movies m ON r.movie_id = m.id
+        WHERE r.swipe_action = 'right' AND r.user_id = ?
+    ''', (user_id,))
+    watchlist_count = cursor.fetchone()['watchlist_count'] or 0
+
+    conn.close()
+
+    return {
+        'movies_watched': movie_count,
+        'avg_rating': avg_rating,
+        'favorite_genres': favorite_genres,
+        'watchlist_count': watchlist_count
+    }
 
 
 if __name__ == '__main__':
