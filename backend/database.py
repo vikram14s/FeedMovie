@@ -1,6 +1,6 @@
 """
 Database setup and helpers for FeedMovie.
-Simple SQLite with 3 tables: movies, ratings, recommendations.
+Multi-user platform with movies, ratings, recommendations, and user management.
 """
 
 import sqlite3
@@ -10,6 +10,111 @@ from typing import Optional, List, Dict, Any
 
 import os
 DATABASE_PATH = os.path.join(os.path.dirname(__file__), '..', 'data', 'feedmovie.db')
+
+
+# ============================================================
+# USER MANAGEMENT
+# ============================================================
+
+def create_user(email: str, password_hash: str, username: str) -> Optional[int]:
+    """Create a new user. Returns user_id or None if email/username exists."""
+    conn = get_connection()
+    cursor = conn.cursor()
+
+    try:
+        cursor.execute('''
+            INSERT INTO users (email, password_hash, username)
+            VALUES (?, ?, ?)
+        ''', (email, password_hash, username))
+        user_id = cursor.lastrowid
+        conn.commit()
+        return user_id
+    except sqlite3.IntegrityError:
+        return None
+    finally:
+        conn.close()
+
+
+def get_user_by_email(email: str) -> Optional[Dict[str, Any]]:
+    """Get user by email."""
+    conn = get_connection()
+    cursor = conn.cursor()
+
+    cursor.execute('SELECT * FROM users WHERE email = ?', (email,))
+    row = cursor.fetchone()
+    conn.close()
+
+    if not row:
+        return None
+
+    return dict(row)
+
+
+def get_user_by_id(user_id: int) -> Optional[Dict[str, Any]]:
+    """Get user by ID."""
+    conn = get_connection()
+    cursor = conn.cursor()
+
+    cursor.execute('SELECT * FROM users WHERE id = ?', (user_id,))
+    row = cursor.fetchone()
+    conn.close()
+
+    if not row:
+        return None
+
+    return dict(row)
+
+
+def get_user_by_username(username: str) -> Optional[Dict[str, Any]]:
+    """Get user by username."""
+    conn = get_connection()
+    cursor = conn.cursor()
+
+    cursor.execute('SELECT * FROM users WHERE username = ?', (username,))
+    row = cursor.fetchone()
+    conn.close()
+
+    if not row:
+        return None
+
+    return dict(row)
+
+
+def update_user_onboarding(user_id: int, onboarding_type: str = None,
+                           letterboxd_username: str = None,
+                           genre_preferences: List[str] = None,
+                           onboarding_completed: bool = None):
+    """Update user's onboarding status and preferences."""
+    conn = get_connection()
+    cursor = conn.cursor()
+
+    updates = []
+    params = []
+
+    if onboarding_type is not None:
+        updates.append("onboarding_type = ?")
+        params.append(onboarding_type)
+
+    if letterboxd_username is not None:
+        updates.append("letterboxd_username = ?")
+        params.append(letterboxd_username)
+
+    if genre_preferences is not None:
+        updates.append("genre_preferences = ?")
+        params.append(json.dumps(genre_preferences))
+
+    if onboarding_completed is not None:
+        updates.append("onboarding_completed = ?")
+        params.append(onboarding_completed)
+
+    if updates:
+        params.append(user_id)
+        cursor.execute(f'''
+            UPDATE users SET {", ".join(updates)} WHERE id = ?
+        ''', params)
+        conn.commit()
+
+    conn.close()
 
 
 def get_connection():
@@ -23,6 +128,21 @@ def init_database():
     """Initialize the database with schema."""
     conn = get_connection()
     cursor = conn.cursor()
+
+    # Users table: Multi-user support
+    cursor.execute('''
+        CREATE TABLE IF NOT EXISTS users (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            email TEXT UNIQUE NOT NULL,
+            password_hash TEXT NOT NULL,
+            username TEXT UNIQUE NOT NULL,
+            letterboxd_username TEXT,
+            onboarding_type TEXT,
+            onboarding_completed BOOLEAN DEFAULT FALSE,
+            genre_preferences TEXT,
+            created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+        )
+    ''')
 
     # Movies table: TMDB-enriched with streaming data
     cursor.execute('''
@@ -46,42 +166,49 @@ def init_database():
         )
     ''')
 
-    # Ratings table: Letterboxd data
+    # Ratings table: User ratings with user_id
     cursor.execute('''
         CREATE TABLE IF NOT EXISTS ratings (
             id INTEGER PRIMARY KEY AUTOINCREMENT,
             movie_id INTEGER NOT NULL,
             rating REAL NOT NULL,  -- 0.5 to 5.0
             watched_date DATE,
-            user TEXT DEFAULT 'vikram14s',  -- Add friends later
+            user TEXT DEFAULT 'vikram14s',  -- Legacy field for backward compat
+            user_id INTEGER,  -- New: proper FK to users
             created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-            FOREIGN KEY (movie_id) REFERENCES movies(id)
+            FOREIGN KEY (movie_id) REFERENCES movies(id),
+            FOREIGN KEY (user_id) REFERENCES users(id)
         )
     ''')
 
-    # Recommendations table: AI + CF results
+    # Recommendations table: AI + CF results with user_id
     cursor.execute('''
         CREATE TABLE IF NOT EXISTS recommendations (
             id INTEGER PRIMARY KEY AUTOINCREMENT,
             movie_id INTEGER NOT NULL,
+            user_id INTEGER,  -- New: per-user recommendations
             source TEXT NOT NULL,  -- 'claude', 'chatgpt', 'gemini', 'cf', 'friend:<name>'
             score REAL NOT NULL,
             reasoning TEXT,
             generated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
             shown_to_user BOOLEAN DEFAULT FALSE,
             swipe_action TEXT,  -- 'left', 'right', null
-            FOREIGN KEY (movie_id) REFERENCES movies(id)
+            FOREIGN KEY (movie_id) REFERENCES movies(id),
+            FOREIGN KEY (user_id) REFERENCES users(id)
         )
     ''')
 
-    # Friends table: Letterboxd friends for taste matching
+    # Friends table: Letterboxd friends for taste matching with user_id
     cursor.execute('''
         CREATE TABLE IF NOT EXISTS friends (
             id INTEGER PRIMARY KEY AUTOINCREMENT,
-            name TEXT UNIQUE NOT NULL,
+            user_id INTEGER,  -- New: per-user friends
+            name TEXT NOT NULL,
             letterboxd_username TEXT,
             compatibility_score REAL,  -- Calculated correlation with user
-            created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+            created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+            FOREIGN KEY (user_id) REFERENCES users(id),
+            UNIQUE(user_id, name)
         )
     ''')
 
@@ -94,11 +221,27 @@ def init_database():
         )
     ''')
 
-    # User taste profiles table
+    # User taste profiles table with user_id
     cursor.execute('''
         CREATE TABLE IF NOT EXISTS user_taste_profiles (
             id INTEGER PRIMARY KEY AUTOINCREMENT,
+            user_id INTEGER,  -- New: per-user profiles
             profile_id TEXT NOT NULL,
+            created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+            FOREIGN KEY (user_id) REFERENCES users(id)
+        )
+    ''')
+
+    # Onboarding movies table: Popular movies for swipe onboarding
+    cursor.execute('''
+        CREATE TABLE IF NOT EXISTS onboarding_movies (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            tmdb_id INTEGER UNIQUE NOT NULL,
+            title TEXT NOT NULL,
+            year INTEGER,
+            poster_path TEXT,
+            genres TEXT,
+            popularity_rank INTEGER,
             created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
         )
     ''')
@@ -111,7 +254,67 @@ def init_database():
 
     conn.commit()
     conn.close()
+
+    # Run migrations for existing databases
+    run_migrations()
+
     print(f"Database initialized at {DATABASE_PATH}")
+
+
+def run_migrations():
+    """Run database migrations to add user_id columns to existing tables."""
+    conn = get_connection()
+    cursor = conn.cursor()
+
+    # Check if user_id column exists in ratings table
+    cursor.execute("PRAGMA table_info(ratings)")
+    columns = [col[1] for col in cursor.fetchall()]
+
+    if 'user_id' not in columns:
+        print("Running migration: Adding user_id to ratings table...")
+        try:
+            cursor.execute('ALTER TABLE ratings ADD COLUMN user_id INTEGER REFERENCES users(id)')
+            conn.commit()
+        except sqlite3.OperationalError:
+            pass  # Column might already exist
+
+    # Check recommendations table
+    cursor.execute("PRAGMA table_info(recommendations)")
+    columns = [col[1] for col in cursor.fetchall()]
+
+    if 'user_id' not in columns:
+        print("Running migration: Adding user_id to recommendations table...")
+        try:
+            cursor.execute('ALTER TABLE recommendations ADD COLUMN user_id INTEGER REFERENCES users(id)')
+            conn.commit()
+        except sqlite3.OperationalError:
+            pass
+
+    # Check friends table
+    cursor.execute("PRAGMA table_info(friends)")
+    columns = [col[1] for col in cursor.fetchall()]
+
+    if 'user_id' not in columns:
+        print("Running migration: Adding user_id to friends table...")
+        try:
+            cursor.execute('ALTER TABLE friends ADD COLUMN user_id INTEGER REFERENCES users(id)')
+            conn.commit()
+        except sqlite3.OperationalError:
+            pass
+
+    # Check user_taste_profiles table
+    cursor.execute("PRAGMA table_info(user_taste_profiles)")
+    columns = [col[1] for col in cursor.fetchall()]
+
+    if 'user_id' not in columns:
+        print("Running migration: Adding user_id to user_taste_profiles table...")
+        try:
+            cursor.execute('ALTER TABLE user_taste_profiles ADD COLUMN user_id INTEGER REFERENCES users(id)')
+            conn.commit()
+        except sqlite3.OperationalError:
+            pass
+
+    conn.close()
 
 
 def add_movie(tmdb_id: int, title: str, year: int,
@@ -192,47 +395,57 @@ def add_movie(tmdb_id: int, title: str, year: int,
 
 
 def add_rating(movie_id: int, rating: float, watched_date: Optional[str] = None,
-               user: str = 'vikram14s'):
+               user: str = 'vikram14s', user_id: Optional[int] = None):
     """Add a rating to the database."""
     conn = get_connection()
     cursor = conn.cursor()
 
     cursor.execute('''
-        INSERT INTO ratings (movie_id, rating, watched_date, user)
-        VALUES (?, ?, ?, ?)
-    ''', (movie_id, rating, watched_date, user))
+        INSERT INTO ratings (movie_id, rating, watched_date, user, user_id)
+        VALUES (?, ?, ?, ?, ?)
+    ''', (movie_id, rating, watched_date, user, user_id))
 
     conn.commit()
     conn.close()
 
 
 def add_recommendation(movie_id: int, source: str, score: float,
-                      reasoning: Optional[str] = None):
+                      reasoning: Optional[str] = None, user_id: Optional[int] = None):
     """Add a recommendation to the database."""
     conn = get_connection()
     cursor = conn.cursor()
 
     cursor.execute('''
-        INSERT INTO recommendations (movie_id, source, score, reasoning)
-        VALUES (?, ?, ?, ?)
-    ''', (movie_id, source, score, reasoning))
+        INSERT INTO recommendations (movie_id, source, score, reasoning, user_id)
+        VALUES (?, ?, ?, ?, ?)
+    ''', (movie_id, source, score, reasoning, user_id))
 
     conn.commit()
     conn.close()
 
 
-def get_all_ratings(user: str = 'vikram14s') -> List[Dict[str, Any]]:
+def get_all_ratings(user: str = 'vikram14s', user_id: Optional[int] = None) -> List[Dict[str, Any]]:
     """Get all ratings for a user with movie details."""
     conn = get_connection()
     cursor = conn.cursor()
 
-    cursor.execute('''
-        SELECT r.rating, r.watched_date, m.title, m.year, m.tmdb_id, m.genres
-        FROM ratings r
-        JOIN movies m ON r.movie_id = m.id
-        WHERE r.user = ?
-        ORDER BY r.rating DESC
-    ''', (user,))
+    # Use user_id if provided, otherwise fall back to legacy user string
+    if user_id is not None:
+        cursor.execute('''
+            SELECT r.rating, r.watched_date, m.title, m.year, m.tmdb_id, m.genres
+            FROM ratings r
+            JOIN movies m ON r.movie_id = m.id
+            WHERE r.user_id = ?
+            ORDER BY r.rating DESC
+        ''', (user_id,))
+    else:
+        cursor.execute('''
+            SELECT r.rating, r.watched_date, m.title, m.year, m.tmdb_id, m.genres
+            FROM ratings r
+            JOIN movies m ON r.movie_id = m.id
+            WHERE r.user = ?
+            ORDER BY r.rating DESC
+        ''', (user,))
 
     ratings = []
     for row in cursor.fetchall():
@@ -273,58 +486,92 @@ def get_movie_by_tmdb_id(tmdb_id: int) -> Optional[Dict[str, Any]]:
     }
 
 
-def get_watched_movie_ids(user: str = 'vikram14s') -> List[int]:
+def get_watched_movie_ids(user: str = 'vikram14s', user_id: Optional[int] = None) -> List[int]:
     """Get list of TMDB IDs for movies the user has watched."""
     conn = get_connection()
     cursor = conn.cursor()
 
-    cursor.execute('''
-        SELECT DISTINCT m.tmdb_id
-        FROM ratings r
-        JOIN movies m ON r.movie_id = m.id
-        WHERE r.user = ?
-    ''', (user,))
+    if user_id is not None:
+        cursor.execute('''
+            SELECT DISTINCT m.tmdb_id
+            FROM ratings r
+            JOIN movies m ON r.movie_id = m.id
+            WHERE r.user_id = ?
+        ''', (user_id,))
+    else:
+        cursor.execute('''
+            SELECT DISTINCT m.tmdb_id
+            FROM ratings r
+            JOIN movies m ON r.movie_id = m.id
+            WHERE r.user = ?
+        ''', (user,))
 
     movie_ids = [row['tmdb_id'] for row in cursor.fetchall()]
     conn.close()
     return movie_ids
 
 
-def clear_recommendations():
-    """Clear all existing recommendations (for regeneration)."""
+def clear_recommendations(user_id: Optional[int] = None):
+    """Clear existing recommendations (for regeneration). If user_id provided, only clears that user's."""
     conn = get_connection()
     cursor = conn.cursor()
-    cursor.execute('DELETE FROM recommendations')
+
+    if user_id is not None:
+        cursor.execute('DELETE FROM recommendations WHERE user_id = ?', (user_id,))
+    else:
+        cursor.execute('DELETE FROM recommendations')
+
     conn.commit()
     conn.close()
-    print("Cleared existing recommendations")
+    print(f"Cleared recommendations" + (f" for user {user_id}" if user_id else ""))
 
 
-def get_top_recommendations(limit: int = 50, genres: Optional[List[str]] = None) -> tuple[List[Dict[str, Any]], int]:
+def get_top_recommendations(limit: int = 50, genres: Optional[List[str]] = None,
+                           user_id: Optional[int] = None) -> tuple[List[Dict[str, Any]], int]:
     """Get top recommendations with movie details, optionally filtered by genres.
     Returns: (list of recommendations, total count of unshown)
     """
     conn = get_connection()
     cursor = conn.cursor()
 
-    # Fetch all results (use MAX for reasoning to get just one, not concatenated)
-    cursor.execute('''
-        SELECT
-            m.title, m.year, m.poster_path, m.genres, m.overview,
-            m.streaming_providers, m.tmdb_id, m.imdb_id,
-            m.tmdb_rating, m.imdb_rating, m.rt_rating,
-            m.directors, m.cast_members, m.awards,
-            GROUP_CONCAT(DISTINCT r.source) as sources,
-            AVG(r.score) as avg_score,
-            MAX(r.reasoning) as reasoning,
-            rt.rating as user_rating
-        FROM recommendations r
-        JOIN movies m ON r.movie_id = m.id
-        LEFT JOIN ratings rt ON m.id = rt.movie_id AND rt.user = 'vikram14s'
-        WHERE r.shown_to_user = FALSE
-        GROUP BY m.id
-        ORDER BY avg_score DESC, COUNT(r.id) DESC
-    ''')
+    # Build query with optional user_id filter
+    if user_id is not None:
+        cursor.execute('''
+            SELECT
+                m.title, m.year, m.poster_path, m.genres, m.overview,
+                m.streaming_providers, m.tmdb_id, m.imdb_id,
+                m.tmdb_rating, m.imdb_rating, m.rt_rating,
+                m.directors, m.cast_members, m.awards,
+                GROUP_CONCAT(DISTINCT r.source) as sources,
+                AVG(r.score) as avg_score,
+                MAX(r.reasoning) as reasoning,
+                rt.rating as user_rating
+            FROM recommendations r
+            JOIN movies m ON r.movie_id = m.id
+            LEFT JOIN ratings rt ON m.id = rt.movie_id AND rt.user_id = ?
+            WHERE r.shown_to_user = FALSE AND r.user_id = ?
+            GROUP BY m.id
+            ORDER BY avg_score DESC, COUNT(r.id) DESC
+        ''', (user_id, user_id))
+    else:
+        # Legacy query for backward compatibility
+        cursor.execute('''
+            SELECT
+                m.title, m.year, m.poster_path, m.genres, m.overview,
+                m.streaming_providers, m.tmdb_id, m.imdb_id,
+                m.tmdb_rating, m.imdb_rating, m.rt_rating,
+                m.directors, m.cast_members, m.awards,
+                GROUP_CONCAT(DISTINCT r.source) as sources,
+                AVG(r.score) as avg_score,
+                MAX(r.reasoning) as reasoning,
+                rt.rating as user_rating
+            FROM recommendations r
+            JOIN movies m ON r.movie_id = m.id
+            LEFT JOIN ratings rt ON m.id = rt.movie_id AND rt.user = 'vikram14s'
+            WHERE r.shown_to_user = FALSE AND r.user_id IS NULL
+            GROUP BY m.id
+            ORDER BY avg_score DESC, COUNT(r.id) DESC
+        ''')
 
     all_recommendations = []
     filtered_recommendations = []
@@ -404,44 +651,71 @@ def get_top_recommendations(limit: int = 50, genres: Optional[List[str]] = None)
         return all_recommendations[:limit], total_count
 
 
-def record_swipe(tmdb_id: int, action: str):
+def record_swipe(tmdb_id: int, action: str, user_id: Optional[int] = None):
     """Record a swipe action (left/right) for a movie."""
     conn = get_connection()
     cursor = conn.cursor()
 
-    # Update all recommendations for this movie
-    cursor.execute('''
-        UPDATE recommendations
-        SET swipe_action = ?, shown_to_user = TRUE
-        WHERE movie_id = (SELECT id FROM movies WHERE tmdb_id = ?)
-    ''', (action, tmdb_id))
+    if user_id is not None:
+        cursor.execute('''
+            UPDATE recommendations
+            SET swipe_action = ?, shown_to_user = TRUE
+            WHERE movie_id = (SELECT id FROM movies WHERE tmdb_id = ?)
+            AND user_id = ?
+        ''', (action, tmdb_id, user_id))
+    else:
+        cursor.execute('''
+            UPDATE recommendations
+            SET swipe_action = ?, shown_to_user = TRUE
+            WHERE movie_id = (SELECT id FROM movies WHERE tmdb_id = ?)
+            AND user_id IS NULL
+        ''', (action, tmdb_id))
 
     conn.commit()
     conn.close()
 
 
-def get_watchlist(user: str = 'vikram14s') -> List[Dict[str, Any]]:
+def get_watchlist(user: str = 'vikram14s', user_id: Optional[int] = None) -> List[Dict[str, Any]]:
     """Get all movies the user has liked (swiped right on)."""
     conn = get_connection()
     cursor = conn.cursor()
 
-    cursor.execute('''
-        SELECT DISTINCT
-            m.title, m.year, m.poster_path, m.genres, m.overview,
-            m.streaming_providers, m.tmdb_id,
-            m.directors, m.cast_members, m.awards,
-            GROUP_CONCAT(r.source) as sources,
-            AVG(r.score) as avg_score,
-            GROUP_CONCAT(r.reasoning, ' | ') as all_reasoning,
-            rt.rating as user_rating,
-            MAX(r.id) as latest_rec_id
-        FROM recommendations r
-        JOIN movies m ON r.movie_id = m.id
-        LEFT JOIN ratings rt ON m.id = rt.movie_id AND rt.user = ?
-        WHERE r.swipe_action = 'right'
-        GROUP BY m.id
-        ORDER BY latest_rec_id DESC
-    ''', (user,))
+    if user_id is not None:
+        cursor.execute('''
+            SELECT DISTINCT
+                m.title, m.year, m.poster_path, m.genres, m.overview,
+                m.streaming_providers, m.tmdb_id,
+                m.directors, m.cast_members, m.awards,
+                GROUP_CONCAT(r.source) as sources,
+                AVG(r.score) as avg_score,
+                GROUP_CONCAT(r.reasoning, ' | ') as all_reasoning,
+                rt.rating as user_rating,
+                MAX(r.id) as latest_rec_id
+            FROM recommendations r
+            JOIN movies m ON r.movie_id = m.id
+            LEFT JOIN ratings rt ON m.id = rt.movie_id AND rt.user_id = ?
+            WHERE r.swipe_action = 'right' AND r.user_id = ?
+            GROUP BY m.id
+            ORDER BY latest_rec_id DESC
+        ''', (user_id, user_id))
+    else:
+        cursor.execute('''
+            SELECT DISTINCT
+                m.title, m.year, m.poster_path, m.genres, m.overview,
+                m.streaming_providers, m.tmdb_id,
+                m.directors, m.cast_members, m.awards,
+                GROUP_CONCAT(r.source) as sources,
+                AVG(r.score) as avg_score,
+                GROUP_CONCAT(r.reasoning, ' | ') as all_reasoning,
+                rt.rating as user_rating,
+                MAX(r.id) as latest_rec_id
+            FROM recommendations r
+            JOIN movies m ON r.movie_id = m.id
+            LEFT JOIN ratings rt ON m.id = rt.movie_id AND rt.user = ?
+            WHERE r.swipe_action = 'right' AND r.user_id IS NULL
+            GROUP BY m.id
+            ORDER BY latest_rec_id DESC
+        ''', (user,))
 
     watchlist = []
     for row in cursor.fetchall():
@@ -467,30 +741,39 @@ def get_watchlist(user: str = 'vikram14s') -> List[Dict[str, Any]]:
     return watchlist
 
 
-def remove_from_watchlist(tmdb_id: int):
+def remove_from_watchlist(tmdb_id: int, user_id: Optional[int] = None):
     """Remove a movie from the watchlist (set swipe_action to NULL)."""
     conn = get_connection()
     cursor = conn.cursor()
 
-    cursor.execute('''
-        UPDATE recommendations
-        SET swipe_action = NULL
-        WHERE movie_id = (SELECT id FROM movies WHERE tmdb_id = ?)
-    ''', (tmdb_id,))
+    if user_id is not None:
+        cursor.execute('''
+            UPDATE recommendations
+            SET swipe_action = NULL
+            WHERE movie_id = (SELECT id FROM movies WHERE tmdb_id = ?)
+            AND user_id = ?
+        ''', (tmdb_id, user_id))
+    else:
+        cursor.execute('''
+            UPDATE recommendations
+            SET swipe_action = NULL
+            WHERE movie_id = (SELECT id FROM movies WHERE tmdb_id = ?)
+            AND user_id IS NULL
+        ''', (tmdb_id,))
 
     conn.commit()
     conn.close()
 
 
-def add_friend(name: str, letterboxd_username: str = None) -> int:
+def add_friend(name: str, letterboxd_username: str = None, user_id: Optional[int] = None) -> int:
     """Add a new friend."""
     conn = get_connection()
     cursor = conn.cursor()
 
     cursor.execute('''
-        INSERT OR REPLACE INTO friends (name, letterboxd_username)
-        VALUES (?, ?)
-    ''', (name, letterboxd_username))
+        INSERT OR REPLACE INTO friends (name, letterboxd_username, user_id)
+        VALUES (?, ?, ?)
+    ''', (name, letterboxd_username, user_id))
 
     friend_id = cursor.lastrowid
     conn.commit()
@@ -498,28 +781,46 @@ def add_friend(name: str, letterboxd_username: str = None) -> int:
     return friend_id
 
 
-def get_all_friends() -> List[Dict[str, Any]]:
-    """Get all friends."""
+def get_all_friends(user_id: Optional[int] = None) -> List[Dict[str, Any]]:
+    """Get all friends for a user."""
     conn = get_connection()
     cursor = conn.cursor()
 
-    cursor.execute('SELECT * FROM friends ORDER BY compatibility_score DESC NULLS LAST')
-    friends = [dict(row) for row in cursor.fetchall()]
+    if user_id is not None:
+        cursor.execute('''
+            SELECT * FROM friends
+            WHERE user_id = ?
+            ORDER BY compatibility_score DESC NULLS LAST
+        ''', (user_id,))
+    else:
+        cursor.execute('''
+            SELECT * FROM friends
+            WHERE user_id IS NULL
+            ORDER BY compatibility_score DESC NULLS LAST
+        ''')
 
+    friends = [dict(row) for row in cursor.fetchall()]
     conn.close()
     return friends
 
 
-def update_friend_compatibility(name: str, score: float):
+def update_friend_compatibility(name: str, score: float, user_id: Optional[int] = None):
     """Update a friend's compatibility score."""
     conn = get_connection()
     cursor = conn.cursor()
 
-    cursor.execute('''
-        UPDATE friends
-        SET compatibility_score = ?
-        WHERE name = ?
-    ''', (score, name))
+    if user_id is not None:
+        cursor.execute('''
+            UPDATE friends
+            SET compatibility_score = ?
+            WHERE name = ? AND user_id = ?
+        ''', (score, name, user_id))
+    else:
+        cursor.execute('''
+            UPDATE friends
+            SET compatibility_score = ?
+            WHERE name = ? AND user_id IS NULL
+        ''', (score, name))
 
     conn.commit()
     conn.close()
@@ -549,6 +850,67 @@ def set_setting(key: str, value: str):
 
     conn.commit()
     conn.close()
+
+
+# ============================================================
+# ONBOARDING MOVIES
+# ============================================================
+
+def add_onboarding_movie(tmdb_id: int, title: str, year: int,
+                         poster_path: str, genres: List[str], popularity_rank: int):
+    """Add a movie to the onboarding set."""
+    conn = get_connection()
+    cursor = conn.cursor()
+
+    try:
+        cursor.execute('''
+            INSERT OR REPLACE INTO onboarding_movies
+            (tmdb_id, title, year, poster_path, genres, popularity_rank)
+            VALUES (?, ?, ?, ?, ?, ?)
+        ''', (tmdb_id, title, year, poster_path, json.dumps(genres), popularity_rank))
+        conn.commit()
+    except sqlite3.IntegrityError:
+        pass
+    finally:
+        conn.close()
+
+
+def get_onboarding_movies(limit: int = 20) -> List[Dict[str, Any]]:
+    """Get movies for onboarding swipe flow."""
+    conn = get_connection()
+    cursor = conn.cursor()
+
+    cursor.execute('''
+        SELECT tmdb_id, title, year, poster_path, genres
+        FROM onboarding_movies
+        ORDER BY popularity_rank ASC
+        LIMIT ?
+    ''', (limit,))
+
+    movies = []
+    for row in cursor.fetchall():
+        movies.append({
+            'tmdb_id': row['tmdb_id'],
+            'title': row['title'],
+            'year': row['year'],
+            'poster_path': row['poster_path'],
+            'genres': json.loads(row['genres']) if row['genres'] else []
+        })
+
+    conn.close()
+    return movies
+
+
+def get_onboarding_movies_count() -> int:
+    """Get count of onboarding movies."""
+    conn = get_connection()
+    cursor = conn.cursor()
+
+    cursor.execute('SELECT COUNT(*) as count FROM onboarding_movies')
+    count = cursor.fetchone()['count']
+
+    conn.close()
+    return count
 
 
 if __name__ == '__main__':

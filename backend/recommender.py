@@ -312,16 +312,22 @@ Return only the JSON array."""
     return enriched
 
 
-def generate_and_save_recommendations(count: int = 15):
+def generate_and_save_recommendations(count: int = 15, user_id: int = None):
     """
     Main entry point: Generate recommendations from all sources and save to database.
+
+    Args:
+        count: Number of recommendations to generate
+        user_id: User ID to generate recommendations for (None for legacy single-user mode)
     """
     print("\n" + "=" * 60)
     print("🎬 FEEDMOVIE RECOMMENDATION ENGINE")
     print("=" * 60)
+    if user_id:
+        print(f"   Generating for user_id: {user_id}")
 
     # Load user ratings
-    ratings = get_all_ratings()
+    ratings = get_all_ratings(user_id=user_id)
     if not ratings:
         print("\n❌ No ratings found in database!")
         print("   Please run: python backend/letterboxd_import.py <csv_file>")
@@ -371,12 +377,12 @@ def generate_and_save_recommendations(count: int = 15):
 
     print(f"\n✅ Final count: {len(enriched)} recommendations (min {MIN_TOTAL} required)")
 
-    # Clear old recommendations
-    clear_recommendations()
+    # Clear old recommendations for this user
+    clear_recommendations(user_id=user_id)
 
     # Save to database
     print(f"\n💾 Saving {len(enriched)} recommendations to database...")
-    watched_ids = set(get_watched_movie_ids())
+    watched_ids = set(get_watched_movie_ids(user_id=user_id))
 
     # Separate unwatched and already-watched movies
     unwatched = []
@@ -427,7 +433,8 @@ def generate_and_save_recommendations(count: int = 15):
             movie_id=movie_id,
             source=primary_source,
             score=rec['score'],
-            reasoning=reasoning
+            reasoning=reasoning,
+            user_id=user_id
         )
         saved_count += 1
 
@@ -456,7 +463,8 @@ def generate_and_save_recommendations(count: int = 15):
             movie_id=movie_id,
             source=primary_source,
             score=rec['score'] * 0.5,  # Lower score so they appear later
-            reasoning=reasoning
+            reasoning=reasoning,
+            user_id=user_id
         )
         saved_count += 1
         print(f"   Added already-watched: {rec['title']}")
