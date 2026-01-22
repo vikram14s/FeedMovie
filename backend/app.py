@@ -178,13 +178,15 @@ def get_current_user(current_user):
 
         return jsonify({
             'success': True,
-            'user_id': user['id'],
-            'username': user['username'],
-            'email': user['email'],
-            'onboarding_completed': bool(user['onboarding_completed']),
-            'onboarding_type': user['onboarding_type'],
-            'letterboxd_username': user['letterboxd_username'],
-            'genre_preferences': json.loads(user['genre_preferences']) if user['genre_preferences'] else []
+            'user': {
+                'id': user['id'],
+                'username': user['username'],
+                'email': user['email'],
+                'onboarding_completed': bool(user['onboarding_completed']),
+                'onboarding_type': user['onboarding_type'],
+                'letterboxd_username': user['letterboxd_username'],
+                'genre_preferences': json.loads(user['genre_preferences']) if user['genre_preferences'] else []
+            }
         })
 
     except Exception as e:
