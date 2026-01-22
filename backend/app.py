@@ -79,11 +79,15 @@ def register():
 
         return jsonify({
             'success': True,
-            'user_id': user_id,
-            'username': username,
-            'email': email,
             'token': token,
-            'onboarding_completed': False
+            'user': {
+                'id': user_id,
+                'username': username,
+                'email': email,
+                'onboarding_completed': False,
+                'onboarding_type': None,
+                'letterboxd_username': None
+            }
         })
 
     except Exception as e:
@@ -136,13 +140,15 @@ def login():
 
         return jsonify({
             'success': True,
-            'user_id': user['id'],
-            'username': user['username'],
-            'email': user['email'],
             'token': token,
-            'onboarding_completed': bool(user['onboarding_completed']),
-            'onboarding_type': user['onboarding_type'],
-            'letterboxd_username': user['letterboxd_username']
+            'user': {
+                'id': user['id'],
+                'username': user['username'],
+                'email': user['email'],
+                'onboarding_completed': bool(user['onboarding_completed']),
+                'onboarding_type': user['onboarding_type'],
+                'letterboxd_username': user['letterboxd_username']
+            }
         })
 
     except Exception as e:

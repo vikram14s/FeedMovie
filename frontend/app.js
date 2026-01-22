@@ -10,6 +10,7 @@ let selectedGenres = [];
 let selectedProfiles = [];
 let generationTriggered = false;
 let totalUnshown = 0;
+let watchlistCount = 0;
 
 // Auth state
 let authToken = null;
@@ -119,6 +120,16 @@ function showMainApp() {
 }
 
 async function initializeMainApp() {
+    // Fetch initial watchlist count
+    try {
+        const response = await fetch(`${API_URL}/watchlist`, { headers: getAuthHeaders() });
+        const data = await response.json();
+        if (data.success) {
+            watchlistCount = data.watchlist.length;
+            updateWatchlistBadge(watchlistCount);
+        }
+    } catch (e) { /* ignore */ }
+
     const savedGenres = localStorage.getItem('feedmovie_genres');
     const savedProfiles = localStorage.getItem('feedmovie_profiles');
 
@@ -305,7 +316,7 @@ async function importLetterboxd() {
                 'Content-Type': 'application/json',
                 ...getAuthHeaders()
             },
-            body: JSON.stringify({ username })
+            body: JSON.stringify({ letterboxd_username: username })
         });
 
         const data = await response.json();
@@ -476,7 +487,14 @@ function changeGenres() {
     localStorage.removeItem('feedmovie_genres');
     selectedGenres = [];
     generationTriggered = false;
-    location.reload();
+
+    // Show genre selection without full reload
+    document.getElementById('card-container').style.display = 'none';
+    document.getElementById('actions').style.display = 'none';
+    document.getElementById('keyboard-hints').style.display = 'none';
+    document.getElementById('no-more').style.display = 'none';
+    document.getElementById('stats-bar').style.display = 'none';
+    document.getElementById('genre-selection').style.display = 'block';
 }
 
 // =============================================
@@ -682,6 +700,7 @@ function createMovieCard(movie) {
     const overview = movie.overview || '';
     const reasoning = movie.reasoning || 'Recommended based on your taste';
     const sources = [...new Set(movie.sources || [])];
+    const isFriendRec = reasoning.toLowerCase().includes('friend') || sources.some(s => s.toLowerCase().includes('friend'));
 
     // Ratings
     const imdbRating = movie.imdb_rating;
@@ -697,6 +716,7 @@ function createMovieCard(movie) {
     card.innerHTML = `
         <div class="card-top">
             <span class="match-badge">${matchScore}% match</span>
+            ${isFriendRec ? '<span class="friend-rec-badge">friend rec</span>' : ''}
             <div class="poster-container">
                 <img src="${posterUrl}" alt="${movie.title}" class="movie-poster">
                 ${movie.already_watched ? '<span class="watched-badge">SEEN</span>' : ''}
@@ -863,7 +883,8 @@ async function swipeRight() {
         }
         updateStats();
         checkPreemptiveGeneration();
-        updateWatchlistBadge();
+        watchlistCount++;
+        updateWatchlistBadge(watchlistCount);
     }, 400);
 }
 
@@ -938,7 +959,8 @@ async function loadWatchlist() {
                 grid.innerHTML = data.watchlist.map(movie => createWatchlistItem(movie)).join('');
             }
 
-            updateWatchlistBadge(data.watchlist.length);
+            watchlistCount = data.watchlist.length;
+            updateWatchlistBadge(watchlistCount);
         }
     } catch (error) {
         console.error('Error loading watchlist:', error);
