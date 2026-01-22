@@ -116,15 +116,20 @@ def get_movie_details(tmdb_id: int) -> Dict[str, Any]:
         external_ids = external_ids_response.json()
         imdb_id = external_ids.get('imdb_id')
 
-        # Get IMDb and Rotten Tomatoes ratings from OMDB
+        # Get IMDb and Rotten Tomatoes ratings + awards from OMDB
         imdb_rating = None
         rt_rating = None
+        awards = None
         if imdb_id:
             from omdb_client import get_ratings_by_imdb_id
             omdb_data = get_ratings_by_imdb_id(imdb_id)
             if omdb_data:
                 imdb_rating = float(omdb_data['imdb_rating']) if omdb_data.get('imdb_rating') else None
                 rt_rating = omdb_data.get('rt_rating')  # e.g., "94%"
+                awards = omdb_data.get('awards')  # e.g., "Won 2 Oscars. 50 wins & 123 nominations"
+
+        # Get credits (director, cast)
+        credits = get_movie_credits(tmdb_id)
 
         # Build result
         result = {
@@ -139,7 +144,10 @@ def get_movie_details(tmdb_id: int) -> Dict[str, Any]:
             'tmdb_rating': round(movie.get('vote_average', 0), 1),
             'tmdb_vote_count': movie.get('vote_count', 0),
             'imdb_rating': imdb_rating,
-            'rt_rating': rt_rating
+            'rt_rating': rt_rating,
+            'directors': credits.get('directors', []),
+            'cast': credits.get('cast', []),
+            'awards': awards
         }
 
         # Cache and return
@@ -158,6 +166,86 @@ def get_movie_details(tmdb_id: int) -> Dict[str, Any]:
             'streaming_providers': {},
             'overview': ''
         }
+
+
+def get_movie_keywords(tmdb_id: int) -> List[str]:
+    """
+    Get keywords/themes for a movie from TMDB.
+
+    Returns list of keyword strings like:
+    ["time travel", "heist", "artificial intelligence", "dystopia"]
+    """
+    cache_key = f"keywords:{tmdb_id}"
+    if cache_key in cache:
+        return cache[cache_key]
+
+    time.sleep(0.25)  # Rate limiting
+
+    try:
+        response = requests.get(
+            f"{TMDB_BASE_URL}/movie/{tmdb_id}/keywords",
+            params={'api_key': TMDB_API_KEY}
+        )
+        response.raise_for_status()
+        data = response.json()
+
+        keywords = [k['name'] for k in data.get('keywords', [])]
+
+        # Cache for 30 days
+        cache.set(cache_key, keywords, expire=2592000)
+        return keywords
+
+    except requests.RequestException as e:
+        print(f"Error getting keywords for TMDB ID {tmdb_id}: {e}")
+        return []
+
+
+def get_movie_credits(tmdb_id: int) -> Dict[str, List[str]]:
+    """
+    Get director and top cast for a movie.
+
+    Returns:
+        {
+            "directors": ["Christopher Nolan"],
+            "cast": ["Leonardo DiCaprio", "Joseph Gordon-Levitt", ...]
+        }
+    """
+    cache_key = f"credits:{tmdb_id}"
+    if cache_key in cache:
+        return cache[cache_key]
+
+    time.sleep(0.25)  # Rate limiting
+
+    try:
+        response = requests.get(
+            f"{TMDB_BASE_URL}/movie/{tmdb_id}/credits",
+            params={'api_key': TMDB_API_KEY}
+        )
+        response.raise_for_status()
+        data = response.json()
+
+        # Get directors from crew
+        directors = [
+            c['name'] for c in data.get('crew', [])
+            if c.get('job') == 'Director'
+        ]
+
+        # Get top 5 cast members
+        cast = [
+            c['name'] for c in data.get('cast', [])[:5]
+        ]
+
+        result = {
+            "directors": directors,
+            "cast": cast
+        }
+
+        cache.set(cache_key, result, expire=2592000)  # 30 days
+        return result
+
+    except requests.RequestException as e:
+        print(f"Error getting credits for TMDB ID {tmdb_id}: {e}")
+        return {"directors": [], "cast": []}
 
 
 def parse_streaming_providers(us_providers: Dict[str, Any]) -> Dict[str, List[Dict[str, str]]]:

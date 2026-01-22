@@ -2,21 +2,24 @@
 <html lang="en">
 <head>
     <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Feed Me a Movie - AI-Powered Recommendations</title>
-    <script src="https://cdn.tailwindcss.com"></script>
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>FeedMovie - Movie Recommendations</title>
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-    <link href="https://fonts.googleapis.com/css2?family=DM+Sans:wght@400;500;700&display=swap" rel="stylesheet">
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
     <style>
         :root {
-            --green: #1DB954;
-            --green-light: #1ed760;
-            --green-dark: #1aa34a;
-            --purple: #8B5CF6;
-            --blue: #3B82F6;
-            --teal: #14B8A6;
-            --cyan: #06B6D4;
+            --teal: #1A7F7F;
+            --teal-light: #E8F5F5;
+            --coral: #E8746E;
+            --bg: #FAFAFA;
+            --card-bg: #FFFFFF;
+            --text-primary: #1A1A1A;
+            --text-secondary: #6B7280;
+            --text-muted: #9CA3AF;
+            --border: #E5E7EB;
+            --shadow: 0 1px 3px rgba(0,0,0,0.08);
+            --shadow-lg: 0 4px 12px rgba(0,0,0,0.1);
         }
 
         * {
@@ -26,727 +29,1073 @@
         }
 
         body {
-            background: linear-gradient(135deg, #0f0a08 0%, #1a1410 25%, #12090a 50%, #1f1108 75%, #0f0a08 100%);
-            background-size: 400% 400%;
-            animation: atmosphericGradient 15s ease infinite;
+            background: var(--bg);
+            font-family: 'Inter', -apple-system, BlinkMacSystemFont, sans-serif;
+            color: var(--text-primary);
             min-height: 100vh;
-            font-family: 'DM Sans', -apple-system, BlinkMacSystemFont, sans-serif;
-            color: #ffffff;
-            position: relative;
-            overflow-x: hidden;
+            -webkit-font-smoothing: antialiased;
         }
 
-        @keyframes atmosphericGradient {
-            0% { background-position: 0% 50%; }
-            50% { background-position: 100% 50%; }
-            100% { background-position: 0% 50%; }
+        .container {
+            max-width: 480px;
+            margin: 0 auto;
+            padding-bottom: 100px;
         }
 
-        /* Atmospheric overlay - warm cinematic tones */
-        body::before {
-            content: '';
-            position: fixed;
+        /* Header */
+        .header {
+            background: var(--card-bg);
+            padding: 16px 20px;
+            position: sticky;
             top: 0;
-            left: 0;
-            width: 100%;
-            height: 100%;
-            background:
-                radial-gradient(circle at 20% 30%, rgba(255, 140, 66, 0.08) 0%, transparent 50%),
-                radial-gradient(circle at 80% 70%, rgba(214, 137, 16, 0.08) 0%, transparent 50%),
-                radial-gradient(circle at 50% 50%, rgba(139, 46, 31, 0.06) 0%, transparent 70%);
-            pointer-events: none;
-            z-index: 1;
+            z-index: 100;
+            border-bottom: 1px solid var(--border);
         }
 
-        /* Subtle noise texture */
-        body::after {
-            content: '';
-            position: fixed;
-            top: 0;
-            left: 0;
-            width: 100%;
-            height: 100%;
-            background-image: url("data:image/svg+xml,%3Csvg viewBox='0 0 400 400' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='noiseFilter'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='3' numOctaves='4' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23noiseFilter)'/%3E%3C/svg%3E");
-            opacity: 0.015;
-            pointer-events: none;
-            z-index: 1;
+        .header-top {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 16px;
         }
 
-        .content-wrapper {
-            position: relative;
-            z-index: 2;
-        }
-
-        /* Typography */
-        .logo-text {
+        .logo {
+            font-size: 28px;
             font-weight: 700;
-            font-size: 3rem;
-            letter-spacing: -0.02em;
-            background: linear-gradient(135deg, #ffffff 0%, #ffd4a3 100%);
-            -webkit-background-clip: text;
-            -webkit-text-fill-color: transparent;
-            background-clip: text;
+            color: var(--teal);
+            letter-spacing: -0.5px;
         }
 
-        /* Movie Card */
+        .header-icons {
+            display: flex;
+            gap: 16px;
+            align-items: center;
+        }
+
+        .header-icon {
+            color: var(--text-secondary);
+            cursor: pointer;
+        }
+
+        /* Filter Pills */
+        .filter-pills {
+            display: flex;
+            gap: 8px;
+            overflow-x: auto;
+            padding: 4px 0;
+            -ms-overflow-style: none;
+            scrollbar-width: none;
+        }
+
+        .filter-pills::-webkit-scrollbar {
+            display: none;
+        }
+
+        .pill {
+            display: inline-flex;
+            align-items: center;
+            gap: 6px;
+            padding: 10px 16px;
+            border-radius: 24px;
+            border: 1px solid var(--border);
+            background: var(--card-bg);
+            font-size: 14px;
+            font-weight: 500;
+            color: var(--text-primary);
+            cursor: pointer;
+            white-space: nowrap;
+            transition: all 0.2s;
+        }
+
+        .pill:hover {
+            border-color: var(--teal);
+        }
+
+        .pill.active {
+            background: var(--teal);
+            border-color: var(--teal);
+            color: white;
+        }
+
+        .pill svg {
+            width: 16px;
+            height: 16px;
+        }
+
+        /* Section Header */
+        .section-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            padding: 20px 20px 12px;
+        }
+
+        .section-title {
+            font-size: 12px;
+            font-weight: 600;
+            color: var(--text-secondary);
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
+        }
+
+        .section-link {
+            font-size: 14px;
+            font-weight: 600;
+            color: var(--teal);
+            text-decoration: none;
+        }
+
+        /* Stats Bar */
+        .stats-bar {
+            display: flex;
+            justify-content: center;
+            gap: 32px;
+            padding: 16px 20px;
+            background: var(--card-bg);
+            border-bottom: 1px solid var(--border);
+        }
+
+        .stat-item {
+            text-align: center;
+        }
+
+        .stat-value {
+            font-size: 24px;
+            font-weight: 700;
+            color: var(--teal);
+        }
+
+        .stat-label {
+            font-size: 11px;
+            color: var(--text-muted);
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
+            margin-top: 2px;
+        }
+
+        /* Movie Card - Swipe Style */
+        .card-stack {
+            position: relative;
+            margin: 16px 20px;
+        }
+
         .movie-card {
-            transition: all 0.5s cubic-bezier(0.4, 0, 0.2, 1);
-            background: rgba(20, 13, 10, 0.6);
-            backdrop-filter: blur(20px);
-            border: 1px solid rgba(255, 200, 150, 0.15);
-            height: 100%;
-            overflow-y: auto;
-            overflow-x: hidden;
-            box-shadow:
-                0 20px 60px rgba(0, 0, 0, 0.6),
-                0 0 80px rgba(255, 140, 66, 0.15),
-                inset 0 1px 0 rgba(255, 200, 150, 0.1);
-            animation: cardEntrance 0.6s cubic-bezier(0.4, 0, 0.2, 1) forwards;
-        }
-
-        @keyframes cardEntrance {
-            from {
-                opacity: 0;
-                transform: scale(0.95) translateY(20px);
-            }
-            to {
-                opacity: 1;
-                transform: scale(1) translateY(0);
-            }
-        }
-
-        .movie-card::-webkit-scrollbar {
-            width: 4px;
-        }
-
-        .movie-card::-webkit-scrollbar-track {
-            background: rgba(255, 255, 255, 0.05);
-        }
-
-        .movie-card::-webkit-scrollbar-thumb {
-            background: var(--green);
-            border-radius: 10px;
+            background: var(--card-bg);
+            border-radius: 16px;
+            box-shadow: var(--shadow-lg);
+            overflow: hidden;
+            transition: transform 0.4s ease, opacity 0.4s ease;
         }
 
         .movie-card.swipe-left {
-            transform: translateX(-120%) rotate(-20deg) scale(0.85);
+            transform: translateX(-120%) rotate(-15deg);
             opacity: 0;
         }
 
         .movie-card.swipe-right {
-            transform: translateX(120%) rotate(20deg) scale(0.85);
+            transform: translateX(120%) rotate(15deg);
             opacity: 0;
         }
 
-        /* Glass card style */
-        .glass-card {
-            background: rgba(20, 13, 10, 0.4);
-            backdrop-filter: blur(20px);
-            border: 1px solid rgba(255, 200, 150, 0.15);
-            box-shadow: 0 8px 32px rgba(0, 0, 0, 0.4);
-        }
-
-        /* Badges */
-        .badge {
-            display: inline-block;
-            padding: 0.4rem 0.9rem;
-            border-radius: 8px;
-            font-size: 0.75rem;
-            font-weight: 600;
-            margin: 0.25rem;
-            background: rgba(255, 255, 255, 0.1);
-            border: 1px solid rgba(255, 255, 255, 0.2);
-            color: #ffd4a3;
-            backdrop-filter: blur(10px);
-        }
-
-        .badge-source {
-            background: linear-gradient(135deg, rgba(214, 137, 16, 0.3) 0%, rgba(255, 140, 66, 0.3) 100%);
-            border: 1px solid rgba(214, 137, 16, 0.5);
-            color: #ffd4a3;
-        }
-
-        .badge-rewatch {
-            background: linear-gradient(135deg, rgba(251, 146, 60, 0.3) 0%, rgba(249, 115, 22, 0.3) 100%);
-            border: 1px solid rgba(251, 146, 60, 0.5);
-            color: #fed7aa;
-        }
-
-        /* Buttons */
-        .btn {
-            font-weight: 600;
-            letter-spacing: -0.01em;
-            transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+        /* Card top section with poster and basic info */
+        .card-top {
             position: relative;
-            overflow: hidden;
+            display: flex;
+            gap: 16px;
+            padding: 16px;
         }
 
-        .btn::before {
-            content: '';
-            position: absolute;
-            top: 50%;
-            left: 50%;
-            width: 0;
-            height: 0;
-            border-radius: 50%;
-            background: rgba(255, 255, 255, 0.2);
-            transform: translate(-50%, -50%);
-            transition: width 0.6s, height 0.6s;
-        }
-
-        .btn:hover::before {
-            width: 300px;
-            height: 300px;
-        }
-
-        .green-btn {
-            background: linear-gradient(135deg, var(--green) 0%, var(--green-dark) 100%);
-            color: #000000;
-            border: 1px solid var(--green);
-            box-shadow: 0 0 30px rgba(29, 185, 84, 0.3);
-        }
-
-        .green-btn:hover {
-            box-shadow: 0 0 50px rgba(29, 185, 84, 0.5);
-            transform: translateY(-2px);
-        }
-
-        .green-btn:active {
-            transform: translateY(0);
-        }
-
-        .dark-btn {
-            background: rgba(30, 41, 59, 0.6);
-            color: #ffd4a3;
-            border: 1px solid rgba(255, 255, 255, 0.2);
-            backdrop-filter: blur(10px);
-        }
-
-        .dark-btn:hover {
-            background: rgba(51, 65, 85, 0.7);
-            border-color: var(--green);
-            box-shadow: 0 0 20px rgba(29, 185, 84, 0.2);
-        }
-
-        /* Genre buttons */
-        .genre-btn {
-            background: rgba(30, 20, 15, 0.5);
-            backdrop-filter: blur(10px);
-            color: #ffd4a3;
-            padding: 1rem;
-            border-radius: 12px;
-            border: 1px solid rgba(255, 200, 150, 0.2);
-            font-weight: 600;
-            transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
-            cursor: pointer;
+        .poster-container {
             position: relative;
-            overflow: hidden;
+            flex-shrink: 0;
         }
 
-        .genre-btn::before {
-            content: '';
-            position: absolute;
-            top: 0;
-            left: -100%;
-            width: 100%;
-            height: 100%;
-            background: linear-gradient(90deg, transparent, rgba(29, 185, 84, 0.1), transparent);
-            transition: left 0.5s;
-        }
-
-        .genre-btn:hover::before {
-            left: 100%;
-        }
-
-        .genre-btn:hover {
-            transform: translateY(-2px);
-            box-shadow: 0 8px 24px rgba(29, 185, 84, 0.2);
-            border-color: var(--green);
-        }
-
-        .genre-btn.selected {
-            background: linear-gradient(135deg, var(--green) 0%, var(--green-dark) 100%);
-            color: #000000;
-            border-color: var(--green);
-            box-shadow: 0 0 30px rgba(29, 185, 84, 0.4);
-        }
-
-        /* Tab styling */
-        .tab-btn {
-            background: transparent;
-            color: rgba(255, 212, 163, 0.6);
-            padding: 0.75rem 2rem;
+        .movie-poster {
+            width: 140px;
+            height: 210px;
+            object-fit: cover;
             border-radius: 12px;
-            border: 1px solid transparent;
-            font-weight: 600;
-            transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
-            cursor: pointer;
-            font-size: 0.9rem;
+            display: block;
         }
 
-        .tab-btn:hover {
-            color: #ffffff;
-            border-color: rgba(255, 255, 255, 0.2);
-            background: rgba(255, 255, 255, 0.05);
-        }
-
-        .tab-btn.active {
-            background: linear-gradient(135deg, var(--green) 0%, var(--green-dark) 100%);
-            color: #000000;
-            border-color: var(--green);
-            box-shadow: 0 0 20px rgba(29, 185, 84, 0.3);
-        }
-
-        .badge-count {
-            display: inline-block;
-            background: rgba(0, 0, 0, 0.4);
-            color: #ffd4a3;
-            padding: 0.25rem 0.5rem;
+        .match-badge {
+            position: absolute;
+            top: 12px;
+            right: 12px;
+            background: var(--teal);
+            color: white;
+            padding: 6px 10px;
             border-radius: 8px;
-            font-size: 0.7rem;
-            margin-left: 0.5rem;
+            font-size: 12px;
+            font-weight: 600;
         }
 
-        .tab-btn.active .badge-count {
-            background: rgba(0, 0, 0, 0.3);
-            color: #000000;
+        .watched-badge {
+            position: absolute;
+            top: 8px;
+            left: 8px;
+            background: var(--coral);
+            color: white;
+            padding: 3px 6px;
+            border-radius: 4px;
+            font-size: 9px;
+            font-weight: 600;
         }
 
-        /* Action buttons */
-        .action-btn {
-            width: 72px;
-            height: 72px;
-            border-radius: 50%;
+        .awards-badge {
+            position: absolute;
+            bottom: 8px;
+            left: 8px;
+            right: 8px;
             display: flex;
             align-items: center;
             justify-content: center;
-            transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
-            border: 2px solid;
-            cursor: pointer;
-            backdrop-filter: blur(10px);
+            gap: 4px;
+            padding: 4px 6px;
+            background: rgba(0,0,0,0.8);
+            backdrop-filter: blur(4px);
+            border-radius: 6px;
+            font-size: 10px;
+            font-weight: 600;
+            color: #FFD700;
         }
 
-        .action-btn-skip {
-            background: rgba(30, 41, 59, 0.6);
-            border-color: rgba(255, 255, 255, 0.2);
-            color: rgba(255, 255, 255, 0.8);
+        .card-info {
+            flex: 1;
+            min-width: 0;
         }
 
-        .action-btn-skip:hover {
-            background: rgba(51, 65, 85, 0.7);
-            border-color: rgba(255, 255, 255, 0.4);
+        .movie-title {
+            font-size: 20px;
+            font-weight: 700;
+            color: var(--text-primary);
+            line-height: 1.2;
+            margin-bottom: 4px;
+        }
+
+        .movie-subtitle {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            flex-wrap: wrap;
+            margin-bottom: 10px;
+        }
+
+        .movie-year {
+            font-size: 14px;
+            color: var(--text-secondary);
+        }
+
+        .rating-badge {
+            display: inline-flex;
+            align-items: center;
+            gap: 3px;
+            padding: 3px 6px;
+            border-radius: 4px;
+            font-size: 11px;
+            font-weight: 600;
+        }
+
+        .rating-imdb {
+            background: #F5C518;
+            color: #000;
+        }
+
+        .rating-rt {
+            background: #FA320A;
             color: white;
+        }
+
+        .rating-tmdb {
+            background: #01D277;
+            color: white;
+        }
+
+        .movie-meta {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 4px;
+            margin-bottom: 10px;
+        }
+
+        .genre-tag {
+            padding: 4px 10px;
+            background: var(--teal-light);
+            border-radius: 12px;
+            font-size: 11px;
+            font-weight: 500;
+            color: var(--teal);
+        }
+
+        .credits-compact {
+            font-size: 12px;
+            color: var(--text-secondary);
+            line-height: 1.5;
+        }
+
+        .credits-compact strong {
+            color: var(--text-primary);
+            font-weight: 600;
+        }
+
+        /* Card bottom section with details */
+        .card-details {
+            padding: 0 16px 16px;
+        }
+
+        .section-label {
+            font-size: 10px;
+            font-weight: 600;
+            color: var(--teal);
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
+            margin-bottom: 4px;
+        }
+
+        .movie-synopsis {
+            margin-bottom: 12px;
+        }
+
+        .synopsis-text {
+            font-size: 13px;
+            color: var(--text-secondary);
+            line-height: 1.5;
+        }
+
+        .movie-reasoning {
+            margin-bottom: 12px;
+            padding: 10px 12px;
+            background: var(--teal-light);
+            border-radius: 8px;
+            border-left: 3px solid var(--teal);
+        }
+
+        .reasoning-text {
+            font-size: 12px;
+            color: var(--text-primary);
+            line-height: 1.5;
+            font-style: italic;
+        }
+
+        .streaming-section {
+            padding-top: 12px;
+            border-top: 1px solid var(--border);
+            margin-bottom: 12px;
+        }
+
+        .streaming-row {
+            display: flex;
+            align-items: center;
+            gap: 6px;
+            flex-wrap: wrap;
+        }
+
+        .streaming-logo {
+            height: 26px;
+            width: auto;
+            border-radius: 4px;
+        }
+
+        .source-section {
+            padding-top: 12px;
+            border-top: 1px solid var(--border);
+        }
+
+        .source-badges {
+            display: flex;
+            gap: 6px;
+            flex-wrap: wrap;
+        }
+
+        .source-badge {
+            display: inline-flex;
+            align-items: center;
+            gap: 4px;
+            padding: 4px 8px;
+            background: #F3F4F6;
+            border-radius: 10px;
+            font-size: 10px;
+            font-weight: 500;
+            color: var(--text-secondary);
+        }
+
+        .source-dot {
+            width: 6px;
+            height: 6px;
+            border-radius: 50%;
+        }
+
+        .source-dot.claude { background: #8B5CF6; }
+        .source-dot.gemini { background: #4285F4; }
+        .source-dot.chatgpt { background: #10A37F; }
+
+        /* Action Buttons */
+        .action-buttons {
+            display: flex;
+            justify-content: center;
+            gap: 20px;
+            padding: 20px;
+        }
+
+        .action-btn {
+            width: 64px;
+            height: 64px;
+            border-radius: 50%;
+            border: none;
+            cursor: pointer;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            transition: transform 0.2s, box-shadow 0.2s;
+        }
+
+        .action-btn:hover {
             transform: scale(1.1);
-            box-shadow: 0 0 30px rgba(255, 255, 255, 0.15);
-        }
-
-        .action-btn-seen {
-            background: rgba(30, 41, 59, 0.6);
-            border-color: rgba(251, 146, 60, 0.4);
-            color: #fed7aa;
-        }
-
-        .action-btn-seen:hover {
-            background: rgba(251, 146, 60, 0.2);
-            border-color: rgba(251, 146, 60, 0.6);
-            transform: scale(1.1);
-            box-shadow: 0 0 30px rgba(251, 146, 60, 0.3);
-        }
-
-        .action-btn-like {
-            background: linear-gradient(135deg, var(--green) 0%, var(--green-dark) 100%);
-            border-color: var(--green);
-            color: #000000;
-            box-shadow: 0 0 30px rgba(29, 185, 84, 0.4);
-        }
-
-        .action-btn-like:hover {
-            transform: scale(1.15);
-            box-shadow: 0 0 50px rgba(29, 185, 84, 0.6);
         }
 
         .action-btn:active {
             transform: scale(0.95);
         }
 
-        /* Streaming logos */
-        .streaming-service {
-            position: relative;
-            display: inline-block;
+        .btn-skip {
+            background: var(--card-bg);
+            border: 2px solid var(--border);
+            color: var(--text-secondary);
         }
 
-        .streaming-logo {
-            height: 36px;
-            width: auto;
-            border-radius: 6px;
-            filter: brightness(1.1) contrast(1.05);
-            opacity: 1 !important;
-            transition: all 0.3s;
+        .btn-skip:hover {
+            border-color: var(--text-secondary);
         }
 
-        .streaming-logo:hover {
-            filter: brightness(1.3) contrast(1.1);
-            transform: translateY(-2px);
+        .btn-seen {
+            background: var(--card-bg);
+            border: 2px solid var(--coral);
+            color: var(--coral);
         }
 
-        .rental-indicator {
-            position: absolute;
-            bottom: -6px;
-            left: 50%;
-            transform: translateX(-50%);
-            background: var(--green);
-            color: #000000;
-            font-size: 9px;
-            font-weight: bold;
-            padding: 2px 5px;
-            border-radius: 4px;
+        .btn-like {
+            background: var(--teal);
+            color: white;
+            box-shadow: 0 4px 12px rgba(26, 127, 127, 0.3);
         }
 
-        /* Star rating */
-        .star-wrapper {
-            position: relative;
-            cursor: pointer;
-            display: inline-block;
-            transition: transform 0.2s;
+        .btn-like:hover {
+            box-shadow: 0 6px 20px rgba(26, 127, 127, 0.4);
         }
 
-        .star-wrapper:hover {
-            transform: scale(1.15);
+        .action-btn svg {
+            width: 28px;
+            height: 28px;
         }
 
-        .rating-star {
-            color: rgba(255, 255, 255, 0.2);
-            transition: all 0.3s;
-            user-select: none;
+        /* Keyboard Hints */
+        .keyboard-hints {
+            text-align: center;
+            font-size: 12px;
+            color: var(--text-muted);
+            padding: 8px 0 16px;
         }
 
-        .star-wrapper:hover .rating-star {
-            color: var(--green);
-            filter: drop-shadow(0 0 10px rgba(29, 185, 84, 0.5));
-        }
-
-        .star-wrapper.filled .rating-star {
-            color: var(--green);
-            filter: drop-shadow(0 0 8px rgba(29, 185, 84, 0.3));
-        }
-
-        .star-wrapper.half-filled .rating-star {
-            background: linear-gradient(90deg, var(--green) 50%, rgba(255, 255, 255, 0.2) 50%);
-            -webkit-background-clip: text;
-            -webkit-text-fill-color: transparent;
-            background-clip: text;
-        }
-
-        /* Watchlist */
-        .watchlist-item {
-            background: rgba(30, 41, 59, 0.5);
-            backdrop-filter: blur(20px);
-            border: 1px solid rgba(255, 255, 255, 0.1);
-            border-radius: 16px;
-            padding: 1.5rem;
+        /* Loading State */
+        .loading {
             display: flex;
-            gap: 1.5rem;
-            transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            padding: 80px 20px;
         }
 
-        .watchlist-item:hover {
-            border-color: var(--green);
-            transform: translateY(-4px);
-            box-shadow: 0 12px 40px rgba(29, 185, 84, 0.2);
-        }
-
-        .watchlist-poster {
-            width: 100px;
-            height: 150px;
-            object-fit: cover;
-            border-radius: 12px;
-            flex-shrink: 0;
-            border: 1px solid rgba(255, 255, 255, 0.1);
-        }
-
-        /* Loading animation */
-        .loading-spinner {
-            width: 64px;
-            height: 64px;
-            border: 3px solid rgba(29, 185, 84, 0.2);
-            border-top: 3px solid var(--green);
+        .spinner {
+            width: 40px;
+            height: 40px;
+            border: 3px solid var(--border);
+            border-top-color: var(--teal);
             border-radius: 50%;
-            animation: spin 0.8s cubic-bezier(0.4, 0, 0.2, 1) infinite;
+            animation: spin 0.8s linear infinite;
         }
 
         @keyframes spin {
-            0% { transform: rotate(0deg); }
-            100% { transform: rotate(360deg); }
+            to { transform: rotate(360deg); }
+        }
+
+        .loading-text {
+            margin-top: 16px;
+            color: var(--text-secondary);
+            font-size: 14px;
+        }
+
+        /* Empty State */
+        .empty-state {
+            text-align: center;
+            padding: 60px 20px;
+        }
+
+        .empty-icon {
+            font-size: 48px;
+            margin-bottom: 16px;
+        }
+
+        .empty-title {
+            font-size: 20px;
+            font-weight: 600;
+            color: var(--text-primary);
+            margin-bottom: 8px;
+        }
+
+        .empty-text {
+            font-size: 14px;
+            color: var(--text-secondary);
+            margin-bottom: 24px;
+        }
+
+        .btn-primary {
+            display: inline-flex;
+            align-items: center;
+            gap: 8px;
+            padding: 14px 28px;
+            background: var(--teal);
+            color: white;
+            border: none;
+            border-radius: 12px;
+            font-size: 15px;
+            font-weight: 600;
+            cursor: pointer;
+            transition: all 0.2s;
+        }
+
+        .btn-primary:hover {
+            background: #166666;
+        }
+
+        .btn-secondary {
+            display: inline-flex;
+            align-items: center;
+            gap: 8px;
+            padding: 14px 28px;
+            background: var(--card-bg);
+            color: var(--text-primary);
+            border: 1px solid var(--border);
+            border-radius: 12px;
+            font-size: 15px;
+            font-weight: 600;
+            cursor: pointer;
+            transition: all 0.2s;
+        }
+
+        .btn-secondary:hover {
+            border-color: var(--teal);
+        }
+
+        .btn-link {
+            background: none;
+            border: none;
+            color: var(--teal);
+            font-size: 14px;
+            font-weight: 500;
+            cursor: pointer;
+            padding: 8px 16px;
+            text-decoration: underline;
+            text-underline-offset: 2px;
+        }
+
+        .btn-link:hover {
+            color: #166666;
+        }
+
+        /* Genre Selection */
+        .genre-selection {
+            padding: 24px 20px;
+        }
+
+        .genre-grid {
+            display: grid;
+            grid-template-columns: repeat(2, 1fr);
+            gap: 10px;
+            margin-bottom: 24px;
+        }
+
+        .genre-option {
+            padding: 14px 16px;
+            background: var(--card-bg);
+            border: 1px solid var(--border);
+            border-radius: 12px;
+            font-size: 14px;
+            font-weight: 500;
+            color: var(--text-primary);
+            cursor: pointer;
+            transition: all 0.2s;
+            text-align: center;
+        }
+
+        .genre-option:hover {
+            border-color: var(--teal);
+        }
+
+        .genre-option.selected {
+            background: var(--teal);
+            border-color: var(--teal);
+            color: white;
+        }
+
+        /* Taste Profiles */
+        .taste-profiles {
+            padding: 24px 20px;
+        }
+
+        .profile-grid {
+            display: grid;
+            grid-template-columns: repeat(2, 1fr);
+            gap: 12px;
+            margin-bottom: 24px;
+        }
+
+        .profile-card {
+            padding: 16px;
+            background: var(--card-bg);
+            border: 2px solid var(--border);
+            border-radius: 12px;
+            cursor: pointer;
+            transition: all 0.2s;
+        }
+
+        .profile-card:hover {
+            border-color: var(--teal);
+        }
+
+        .profile-card.selected {
+            border-color: var(--teal);
+            background: var(--teal-light);
+        }
+
+        .profile-icon {
+            font-size: 32px;
+            margin-bottom: 8px;
+        }
+
+        .profile-name {
+            font-size: 14px;
+            font-weight: 600;
+            color: var(--text-primary);
+            margin-bottom: 4px;
+        }
+
+        .profile-desc {
+            font-size: 12px;
+            color: var(--text-secondary);
+            line-height: 1.4;
+        }
+
+        /* Watchlist */
+        .watchlist {
+            padding: 0 20px;
+        }
+
+        .watchlist-item {
+            display: flex;
+            gap: 16px;
+            padding: 16px;
+            background: var(--card-bg);
+            border-radius: 12px;
+            margin-bottom: 12px;
+            box-shadow: var(--shadow);
+        }
+
+        .watchlist-poster {
+            width: 80px;
+            height: 120px;
+            object-fit: cover;
+            border-radius: 8px;
+            flex-shrink: 0;
+        }
+
+        .watchlist-info {
+            flex: 1;
+            min-width: 0;
+        }
+
+        .watchlist-title {
+            font-size: 16px;
+            font-weight: 600;
+            color: var(--text-primary);
+            margin-bottom: 4px;
+        }
+
+        .watchlist-meta {
+            font-size: 13px;
+            color: var(--text-secondary);
+            margin-bottom: 8px;
+        }
+
+        .watchlist-streaming {
+            display: flex;
+            gap: 6px;
+            flex-wrap: wrap;
+        }
+
+        .watchlist-streaming img {
+            height: 24px;
+            border-radius: 4px;
+        }
+
+        .remove-btn {
+            background: none;
+            border: none;
+            color: var(--text-muted);
+            cursor: pointer;
+            padding: 8px;
+        }
+
+        .remove-btn:hover {
+            color: var(--coral);
         }
 
         /* Modal */
         .modal-overlay {
-            backdrop-filter: blur(20px);
-            background: rgba(10, 14, 39, 0.8);
-            animation: fadeIn 0.3s ease-out;
+            position: fixed;
+            inset: 0;
+            background: rgba(0,0,0,0.5);
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            z-index: 1000;
+            padding: 20px;
         }
 
-        @keyframes fadeIn {
-            from { opacity: 0; }
-            to { opacity: 1; }
+        .modal {
+            background: var(--card-bg);
+            border-radius: 16px;
+            padding: 24px;
+            max-width: 360px;
+            width: 100%;
         }
 
-        .modal-content {
-            animation: modalSlideUp 0.4s cubic-bezier(0.4, 0, 0.2, 1);
-        }
-
-        @keyframes modalSlideUp {
-            from {
-                opacity: 0;
-                transform: translateY(40px) scale(0.95);
-            }
-            to {
-                opacity: 1;
-                transform: translateY(0) scale(1);
-            }
-        }
-
-        /* Match percentage badge */
-        .match-badge {
-            background: linear-gradient(135deg, var(--green) 0%, var(--green-dark) 100%);
-            color: #000000;
-            padding: 0.5rem 1rem;
-            border-radius: 8px;
+        .modal-title {
+            font-size: 20px;
             font-weight: 700;
-            font-size: 0.85rem;
-            box-shadow: 0 0 20px rgba(29, 185, 84, 0.4);
-            border: 1px solid var(--green-light);
+            color: var(--text-primary);
+            margin-bottom: 8px;
         }
 
-        /* Fade in animations */
-        .fade-in {
-            animation: fadeInUp 0.6s cubic-bezier(0.4, 0, 0.2, 1) forwards;
-            opacity: 0;
+        .modal-subtitle {
+            font-size: 14px;
+            color: var(--text-secondary);
+            margin-bottom: 24px;
         }
 
-        .fade-in-1 { animation-delay: 0.1s; }
-        .fade-in-2 { animation-delay: 0.2s; }
-        .fade-in-3 { animation-delay: 0.3s; }
-
-        @keyframes fadeInUp {
-            from {
-                opacity: 0;
-                transform: translateY(20px);
-            }
-            to {
-                opacity: 1;
-                transform: translateY(0);
-            }
+        .star-rating {
+            display: flex;
+            justify-content: center;
+            gap: 8px;
+            margin-bottom: 24px;
         }
 
-        /* Poster hover effect */
-        .poster-container {
-            position: relative;
-            overflow: hidden;
+        .star {
+            font-size: 36px;
+            color: var(--border);
+            cursor: pointer;
+            transition: color 0.2s;
         }
 
-        .poster-container::after {
-            content: '';
+        .star.filled {
+            color: var(--teal);
+        }
+
+        .star:hover {
+            color: var(--teal);
+        }
+
+        .rating-display {
+            text-align: center;
+            margin-bottom: 24px;
+        }
+
+        .rating-value {
+            font-size: 32px;
+            font-weight: 700;
+            color: var(--teal);
+        }
+
+        .rating-max {
+            font-size: 16px;
+            color: var(--text-muted);
+        }
+
+        .modal-actions {
+            display: flex;
+            gap: 12px;
+        }
+
+        .modal-actions button {
+            flex: 1;
+        }
+
+        /* Bottom Nav */
+        .bottom-nav {
+            position: fixed;
+            bottom: 0;
+            left: 0;
+            right: 0;
+            background: var(--card-bg);
+            border-top: 1px solid var(--border);
+            display: flex;
+            justify-content: space-around;
+            padding: 12px 0 24px;
+            z-index: 100;
+        }
+
+        .nav-item {
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            gap: 4px;
+            color: var(--text-muted);
+            text-decoration: none;
+            font-size: 11px;
+            cursor: pointer;
+            background: none;
+            border: none;
+            padding: 0;
+        }
+
+        .nav-item.active {
+            color: var(--teal);
+        }
+
+        .nav-item svg {
+            width: 24px;
+            height: 24px;
+        }
+
+        .nav-badge {
             position: absolute;
-            top: 0;
-            left: -100%;
-            width: 50%;
-            height: 100%;
-            background: linear-gradient(90deg, transparent, rgba(255, 255, 255, 0.15), transparent);
-            transition: left 0.6s;
+            top: -4px;
+            right: -4px;
+            background: var(--coral);
+            color: white;
+            font-size: 10px;
+            font-weight: 600;
+            padding: 2px 6px;
+            border-radius: 10px;
         }
 
-        .poster-container:hover::after {
-            left: 150%;
+        /* Hide scrollbar */
+        ::-webkit-scrollbar {
+            width: 0;
+            height: 0;
         }
 
-        /* Section divider */
-        .section-divider {
-            height: 1px;
-            background: linear-gradient(90deg, transparent, rgba(255, 255, 255, 0.2), transparent);
-            margin: 1.5rem 0;
+        /* Selection card */
+        .selection-card {
+            background: var(--card-bg);
+            border-radius: 16px;
+            padding: 32px 24px;
+            margin: 16px 20px;
+            box-shadow: var(--shadow);
         }
 
-        /* Section header */
-        .section-header {
-            font-size: 0.7rem;
+        .selection-title {
+            font-size: 24px;
             font-weight: 700;
-            text-transform: uppercase;
-            letter-spacing: 0.1em;
-            color: var(--green);
-            margin-bottom: 0.75rem;
+            color: var(--text-primary);
+            text-align: center;
+            margin-bottom: 8px;
+        }
+
+        .selection-subtitle {
+            font-size: 14px;
+            color: var(--text-secondary);
+            text-align: center;
+            margin-bottom: 24px;
+        }
+
+        .selection-actions {
+            display: flex;
+            flex-direction: column;
+            gap: 12px;
+            align-items: center;
+        }
+
+        .hint-text {
+            font-size: 13px;
+            color: var(--text-muted);
+            text-align: center;
+            margin-top: 12px;
         }
     </style>
 </head>
 <body>
-    <div class="content-wrapper container mx-auto px-4 py-12 max-w-4xl">
+    <div class="container">
         <!-- Header -->
-        <div class="text-center mb-12 fade-in fade-in-1">
-            <h1 class="logo-text mb-4">🎬 Feed Me a Movie</h1>
-            <p class="text-gray-400 text-base mt-4 font-normal">Finding movies as your food gets cold is disappointing.<br>Find a movie you actually want to watch quicker</p>
-        </div>
-
-        <!-- Navigation Tabs -->
-        <div class="flex justify-center gap-4 mb-10 fade-in fade-in-2">
-            <button onclick="switchTab('discover')" id="discover-tab" class="tab-btn active">
-                Discover
-            </button>
-            <button onclick="switchTab('watchlist')" id="watchlist-tab" class="tab-btn">
-                Watchlist <span id="watchlist-count" class="badge-count">0</span>
-            </button>
-            <button onclick="changeGenres()" id="change-genres-btn" class="tab-btn" style="display: none;">
-                Change Genres
-            </button>
-        </div>
-
-        <!-- Genre Selection Screen -->
-        <div id="genre-selection" class="glass-card rounded-2xl p-10 fade-in fade-in-3">
-            <h2 class="text-3xl font-bold text-center mb-3">What are you feeling like watching?</h2>
-            <p class="text-gray-400 text-center mb-10">Select one or more genres to get started</p>
-
-            <div class="grid grid-cols-2 md:grid-cols-3 gap-3 mb-10">
-                <button onclick="toggleGenre('Action')" class="genre-btn" data-genre="Action">Action</button>
-                <button onclick="toggleGenre('Comedy')" class="genre-btn" data-genre="Comedy">Comedy</button>
-                <button onclick="toggleGenre('Drama')" class="genre-btn" data-genre="Drama">Drama</button>
-                <button onclick="toggleGenre('Thriller')" class="genre-btn" data-genre="Thriller">Thriller</button>
-                <button onclick="toggleGenre('Romance')" class="genre-btn" data-genre="Romance">Romance</button>
-                <button onclick="toggleGenre('Sci-Fi')" class="genre-btn" data-genre="Sci-Fi">Sci-Fi</button>
-                <button onclick="toggleGenre('Horror')" class="genre-btn" data-genre="Horror">Horror</button>
-                <button onclick="toggleGenre('Documentary')" class="genre-btn" data-genre="Documentary">Documentary</button>
-                <button onclick="toggleGenre('Animation')" class="genre-btn" data-genre="Animation">Animation</button>
-                <button onclick="toggleGenre('Crime')" class="genre-btn" data-genre="Crime">Crime</button>
-                <button onclick="toggleGenre('Mystery')" class="genre-btn" data-genre="Mystery">Mystery</button>
-                <button onclick="toggleGenre('Adventure')" class="genre-btn" data-genre="Adventure">Adventure</button>
+        <header class="header">
+            <div class="header-top">
+                <div class="logo">feedmovie</div>
+                <div class="header-icons">
+                    <svg class="header-icon" width="24" height="24" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10.325 4.317c.426-1.756 2.924-1.756 3.35 0a1.724 1.724 0 002.573 1.066c1.543-.94 3.31.826 2.37 2.37a1.724 1.724 0 001.065 2.572c1.756.426 1.756 2.924 0 3.35a1.724 1.724 0 00-1.066 2.573c.94 1.543-.826 3.31-2.37 2.37a1.724 1.724 0 00-2.572 1.065c-.426 1.756-2.924 1.756-3.35 0a1.724 1.724 0 00-2.573-1.066c-1.543.94-3.31-.826-2.37-2.37a1.724 1.724 0 00-1.065-2.572c-1.756-.426-1.756-2.924 0-3.35a1.724 1.724 0 001.066-2.573c-.94-1.543.826-3.31 2.37-2.37.996.608 2.296.07 2.572-1.065z"></path>
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z"></path>
+                    </svg>
+                </div>
             </div>
-
-            <div class="text-center">
-                <button onclick="startRecommendations()" class="btn green-btn px-10 py-4 rounded-xl font-bold" id="start-btn" disabled>
-                    Start Finding Movies
+            <div class="filter-pills" id="filter-pills">
+                <button class="pill active" onclick="switchTab('discover')" id="discover-pill">
+                    <svg fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M7 4V2M17 4V2M3 10h18M5 4h14a2 2 0 012 2v14a2 2 0 01-2 2H5a2 2 0 01-2-2V6a2 2 0 012-2z"></path></svg>
+                    Discover
                 </button>
-                <p class="text-gray-500 text-sm mt-4" id="genre-hint">Select at least one genre</p>
+                <button class="pill" onclick="switchTab('watchlist')" id="watchlist-pill">
+                    <svg fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 5a2 2 0 012-2h10a2 2 0 012 2v16l-7-3.5L5 21V5z"></path></svg>
+                    Watchlist
+                    <span id="watchlist-badge" style="display: none;"></span>
+                </button>
+                <button class="pill" onclick="changeGenres()" id="change-genres-pill" style="display: none;">
+                    <svg fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 6V4m0 2a2 2 0 100 4m0-4a2 2 0 110 4m-6 8a2 2 0 100-4m0 4a2 2 0 110-4m0 4v2m0-6V4m6 6v10m6-2a2 2 0 100-4m0 4a2 2 0 110-4m0 4v2m0-6V4"></path></svg>
+                    Filters
+                </button>
+            </div>
+        </header>
+
+        <!-- Stats Bar -->
+        <div class="stats-bar" id="stats-bar" style="display: none;">
+            <div class="stat-item">
+                <div class="stat-value" id="remaining-count">-</div>
+                <div class="stat-label">Remaining</div>
+            </div>
+            <div class="stat-item">
+                <div class="stat-value" id="liked-count">0</div>
+                <div class="stat-label">Liked</div>
+            </div>
+            <div class="stat-item">
+                <div class="stat-value" style="color: var(--text-muted);" id="skipped-count">0</div>
+                <div class="stat-label">Skipped</div>
             </div>
         </div>
 
-        <!-- Stats -->
-        <div id="stats" class="glass-card rounded-xl p-6 mb-8 text-center" style="display: none;">
-            <div class="flex justify-around">
-                <div>
-                    <div class="text-3xl font-bold" style="color: var(--green);" id="remaining-count">-</div>
-                    <div class="text-xs text-gray-500 uppercase tracking-wider mt-1">Remaining</div>
-                </div>
-                <div>
-                    <div class="text-3xl font-bold" style="color: var(--green);" id="liked-count">0</div>
-                    <div class="text-xs text-gray-500 uppercase tracking-wider mt-1">Liked</div>
-                </div>
-                <div>
-                    <div class="text-3xl font-bold text-gray-500" id="skipped-count">0</div>
-                    <div class="text-xs text-gray-500 uppercase tracking-wider mt-1">Skipped</div>
+        <!-- Main Content -->
+        <main id="main-content">
+            <!-- Taste Profile Selection -->
+            <div id="taste-profile-selection" style="display: none;">
+                <div class="selection-card">
+                    <h2 class="selection-title">What's your vibe?</h2>
+                    <p class="selection-subtitle">Pick 1-2 profiles that match your taste</p>
+                    <div class="profile-grid" id="taste-profiles-grid"></div>
+                    <div class="selection-actions">
+                        <button onclick="saveTasteProfiles()" class="btn-primary" id="save-profiles-btn" disabled>
+                            Continue
+                        </button>
+                        <button onclick="skipTasteProfiles()" class="btn-secondary">
+                            Skip for now
+                        </button>
+                    </div>
+                    <p class="hint-text" id="profile-hint">Select at least one profile</p>
                 </div>
             </div>
-        </div>
 
-        <!-- Loading State -->
-        <div id="loading" class="text-center py-24" style="display: none;">
-            <div class="loading-spinner mx-auto mb-6"></div>
-            <p class="text-gray-400">Loading recommendations...</p>
-        </div>
+            <!-- Genre Selection -->
+            <div id="genre-selection" style="display: none;">
+                <div class="selection-card">
+                    <h2 class="selection-title">What mood are you in?</h2>
+                    <p class="selection-subtitle">Select genres to get personalized recommendations</p>
+                    <div class="genre-grid">
+                        <button onclick="toggleGenre('Action')" class="genre-option" data-genre="Action">Action</button>
+                        <button onclick="toggleGenre('Comedy')" class="genre-option" data-genre="Comedy">Comedy</button>
+                        <button onclick="toggleGenre('Drama')" class="genre-option" data-genre="Drama">Drama</button>
+                        <button onclick="toggleGenre('Thriller')" class="genre-option" data-genre="Thriller">Thriller</button>
+                        <button onclick="toggleGenre('Romance')" class="genre-option" data-genre="Romance">Romance</button>
+                        <button onclick="toggleGenre('Sci-Fi')" class="genre-option" data-genre="Sci-Fi">Sci-Fi</button>
+                        <button onclick="toggleGenre('Horror')" class="genre-option" data-genre="Horror">Horror</button>
+                        <button onclick="toggleGenre('Documentary')" class="genre-option" data-genre="Documentary">Documentary</button>
+                        <button onclick="toggleGenre('Animation')" class="genre-option" data-genre="Animation">Animation</button>
+                        <button onclick="toggleGenre('Crime')" class="genre-option" data-genre="Crime">Crime</button>
+                    </div>
+                    <div class="selection-actions">
+                        <button onclick="startRecommendations()" class="btn-primary" id="start-btn" disabled>
+                            Start Discovering
+                        </button>
+                        <button onclick="skipGenreSelection()" class="btn-link" id="skip-genres-btn">
+                            I can't decide, just suggest me something
+                        </button>
+                    </div>
+                </div>
+            </div>
 
-        <!-- Movie Card Stack -->
-        <div id="card-container" class="relative" style="height: 800px; display: none;">
-            <!-- Cards will be dynamically inserted here -->
-        </div>
+            <!-- Loading State -->
+            <div id="loading" class="loading" style="display: none;">
+                <div class="spinner"></div>
+                <p class="loading-text">Finding perfect movies for you...</p>
+            </div>
 
-        <!-- No More Movies -->
-        <div id="no-more" class="text-center py-24" style="display: none;">
-            <div class="text-6xl mb-6">🎉</div>
-            <h2 class="text-3xl font-bold mb-3">All done!</h2>
-            <p class="text-gray-400 mb-8" id="no-more-description">You've reviewed all recommendations</p>
-            <button id="see-more-btn" onclick="generateMoreRecommendations()" class="btn green-btn px-8 py-4 rounded-xl font-bold">
-                See More
-            </button>
-            <p class="text-gray-500 text-sm mt-3" id="see-more-hint">Loading more movies in your selected genres</p>
-        </div>
+            <!-- Movie Card Stack -->
+            <div id="card-container" class="card-stack" style="display: none;"></div>
 
-        <!-- Action Buttons -->
-        <div id="actions" class="flex justify-center items-center gap-6 mt-10" style="display: none;">
-            <button onclick="swipeLeft()" class="action-btn action-btn-skip" title="Skip">
-                <svg class="w-9 h-9" fill="none" stroke="currentColor" viewBox="0 0 24 24" stroke-width="2">
-                    <path stroke-linecap="round" stroke-linejoin="round" d="M6 18L18 6M6 6l12 12"></path>
-                </svg>
-            </button>
-            <button onclick="showAlreadySeenModal()" class="action-btn action-btn-seen" title="Already Seen">
-                <svg class="w-9 h-9" fill="none" stroke="currentColor" viewBox="0 0 24 24" stroke-width="2">
-                    <path stroke-linecap="round" stroke-linejoin="round" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z"></path>
-                    <path stroke-linecap="round" stroke-linejoin="round" d="M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z"></path>
-                </svg>
-            </button>
-            <button onclick="swipeRight()" class="action-btn action-btn-like" title="Add to Watchlist">
-                <svg class="w-9 h-9" fill="none" stroke="currentColor" viewBox="0 0 24 24" stroke-width="2.5">
-                    <path stroke-linecap="round" stroke-linejoin="round" d="M5 13l4 4L19 7"></path>
-                </svg>
-            </button>
-        </div>
-
-        <!-- Keyboard Hints -->
-        <div id="keyboard-hints" class="text-center text-gray-600 text-xs mt-8 tracking-wide" style="display: none;">
-            ← SKIP  •  S ALREADY SEEN  •  → ADD TO WATCHLIST
-        </div>
-
-        <!-- Watchlist View -->
-        <div id="watchlist-view" style="display: none;">
-            <div id="watchlist-empty" class="text-center py-24" style="display: none;">
-                <div class="text-6xl mb-6">📋</div>
-                <h2 class="text-3xl font-bold mb-3">Your watchlist is empty</h2>
-                <p class="text-gray-400 mb-8">Movies you like will appear here</p>
-                <button onclick="switchTab('discover')" class="btn green-btn px-8 py-4 rounded-xl font-bold">
-                    Discover Movies
+            <!-- Action Buttons -->
+            <div id="actions" class="action-buttons" style="display: none;">
+                <button onclick="swipeLeft()" class="action-btn btn-skip" title="Skip (←)">
+                    <svg fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"></path>
+                    </svg>
+                </button>
+                <button onclick="showAlreadySeenModal()" class="action-btn btn-seen" title="Already Seen (S)">
+                    <svg fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z"></path>
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z"></path>
+                    </svg>
+                </button>
+                <button onclick="swipeRight()" class="action-btn btn-like" title="Add to Watchlist (→)">
+                    <svg fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2.5" d="M5 13l4 4L19 7"></path>
+                    </svg>
                 </button>
             </div>
 
-            <div id="watchlist-grid" class="grid grid-cols-1 gap-5">
-                <!-- Watchlist items will be dynamically inserted here -->
+            <div id="keyboard-hints" class="keyboard-hints" style="display: none;">
+                ← Skip • S Already Seen • → Add to Watchlist
             </div>
-        </div>
+
+            <!-- Empty/Done State -->
+            <div id="no-more" class="empty-state" style="display: none;">
+                <div class="empty-icon">🎉</div>
+                <h2 class="empty-title">All caught up!</h2>
+                <p class="empty-text" id="no-more-description">You've reviewed all recommendations</p>
+                <button onclick="generateMoreRecommendations()" class="btn-primary" id="see-more-btn">
+                    Load More Movies
+                </button>
+            </div>
+
+            <!-- Watchlist View -->
+            <div id="watchlist-view" style="display: none;">
+                <div class="section-header">
+                    <span class="section-title">Your Watchlist</span>
+                </div>
+                <div id="watchlist-empty" class="empty-state" style="display: none;">
+                    <div class="empty-icon">📋</div>
+                    <h2 class="empty-title">No movies saved yet</h2>
+                    <p class="empty-text">Movies you like will appear here</p>
+                    <button onclick="switchTab('discover')" class="btn-primary">
+                        Discover Movies
+                    </button>
+                </div>
+                <div id="watchlist-grid" class="watchlist"></div>
+            </div>
+        </main>
 
         <!-- Already Seen Modal -->
-        <div id="already-seen-modal" class="modal-overlay fixed inset-0 flex items-center justify-center" style="display: none; z-index: 1000;">
-            <div class="modal-content glass-card rounded-2xl p-10 max-w-md w-full mx-4">
-                <h2 class="text-3xl font-bold mb-4">Rate this movie</h2>
-                <p class="text-gray-300 mb-2 font-medium" id="modal-movie-title"></p>
-                <p class="text-gray-500 text-sm mb-8">How would you rate it?</p>
-
-                <!-- Star Rating -->
-                <div class="flex justify-center gap-2 mb-10" id="star-rating-container">
-                    <div class="star-wrapper" data-star="1" onclick="handleStarClick(event, 1)">
-                        <span class="rating-star text-6xl">★</span>
-                    </div>
-                    <div class="star-wrapper" data-star="2" onclick="handleStarClick(event, 2)">
-                        <span class="rating-star text-6xl">★</span>
-                    </div>
-                    <div class="star-wrapper" data-star="3" onclick="handleStarClick(event, 3)">
-                        <span class="rating-star text-6xl">★</span>
-                    </div>
-                    <div class="star-wrapper" data-star="4" onclick="handleStarClick(event, 4)">
-                        <span class="rating-star text-6xl">★</span>
-                    </div>
-                    <div class="star-wrapper" data-star="5" onclick="handleStarClick(event, 5)">
-                        <span class="rating-star text-6xl">★</span>
-                    </div>
+        <div id="already-seen-modal" class="modal-overlay" style="display: none;">
+            <div class="modal">
+                <h2 class="modal-title">Rate this movie</h2>
+                <p class="modal-subtitle" id="modal-movie-title"></p>
+                <div class="star-rating" id="star-rating-container">
+                    <span class="star" data-star="1" onclick="handleStarClick(event, 1)">★</span>
+                    <span class="star" data-star="2" onclick="handleStarClick(event, 2)">★</span>
+                    <span class="star" data-star="3" onclick="handleStarClick(event, 3)">★</span>
+                    <span class="star" data-star="4" onclick="handleStarClick(event, 4)">★</span>
+                    <span class="star" data-star="5" onclick="handleStarClick(event, 5)">★</span>
                 </div>
-
-                <div class="text-center mb-8">
-                    <span class="text-4xl font-bold" style="color: var(--green);" id="selected-rating">-</span>
-                    <span class="text-gray-500 text-xl"> / 5.0</span>
+                <div class="rating-display">
+                    <span class="rating-value" id="selected-rating">-</span>
+                    <span class="rating-max">/ 5</span>
                 </div>
-
-                <!-- Action Buttons -->
-                <div class="flex gap-4">
-                    <button onclick="closeModal()" class="flex-1 btn dark-btn px-6 py-4 rounded-xl font-bold">
-                        Cancel
-                    </button>
-                    <button onclick="submitRating()" class="flex-1 btn green-btn px-6 py-4 rounded-xl font-bold" id="submit-rating-btn" disabled>
-                        Submit
-                    </button>
+                <div class="modal-actions">
+                    <button onclick="closeModal()" class="btn-secondary">Cancel</button>
+                    <button onclick="submitRating()" class="btn-primary" id="submit-rating-btn" disabled>Submit</button>
                 </div>
             </div>
         </div>

@@ -12,6 +12,8 @@ from database import (get_top_recommendations, record_swipe, get_movie_by_tmdb_i
                       add_movie, add_rating, get_watchlist, remove_from_watchlist, get_connection)
 from datetime import datetime
 import tmdb_client
+from taste_profiles import get_all_profiles, get_profile, build_profile_prompt_context
+from swipe_analytics import get_swipe_patterns, get_swipe_summary
 
 app = Flask(__name__)
 CORS(app)  # Enable CORS for frontend
@@ -255,6 +257,134 @@ def generate_more():
 
     except Exception as e:
         print(f"Error checking generation status: {e}")
+        return jsonify({
+            'success': False,
+            'error': str(e)
+        }), 500
+
+
+@app.route('/api/taste-profiles', methods=['GET'])
+def get_taste_profiles():
+    """
+    Get available taste profiles for onboarding.
+    """
+    try:
+        profiles = get_all_profiles()
+        return jsonify({
+            'success': True,
+            'profiles': profiles
+        })
+    except Exception as e:
+        return jsonify({
+            'success': False,
+            'error': str(e)
+        }), 500
+
+
+@app.route('/api/select-profile', methods=['POST'])
+def select_taste_profile():
+    """
+    Save user's selected taste profile(s).
+
+    Body:
+    {
+        "profile_ids": ["nolan_epic_fan", "a24_indie_lover"]
+    }
+    """
+    try:
+        data = request.get_json()
+        profile_ids = data.get('profile_ids', [])
+
+        if not profile_ids:
+            return jsonify({
+                'success': False,
+                'error': 'No profiles selected'
+            }), 400
+
+        # Validate profiles exist
+        valid_profiles = []
+        for pid in profile_ids:
+            profile = get_profile(pid)
+            if profile:
+                valid_profiles.append(pid)
+
+        if not valid_profiles:
+            return jsonify({
+                'success': False,
+                'error': 'No valid profiles found'
+            }), 400
+
+        # Save to database
+        conn = get_connection()
+        cursor = conn.cursor()
+
+        # Clear existing profile selections
+        cursor.execute('DELETE FROM user_taste_profiles')
+
+        # Insert new selections
+        for pid in valid_profiles:
+            cursor.execute(
+                'INSERT INTO user_taste_profiles (profile_id) VALUES (?)',
+                (pid,)
+            )
+
+        conn.commit()
+        conn.close()
+
+        return jsonify({
+            'success': True,
+            'message': f'Saved {len(valid_profiles)} taste profile(s)',
+            'profiles': valid_profiles
+        })
+
+    except Exception as e:
+        return jsonify({
+            'success': False,
+            'error': str(e)
+        }), 500
+
+
+@app.route('/api/user-profiles', methods=['GET'])
+def get_user_profiles():
+    """
+    Get user's selected taste profiles.
+    """
+    try:
+        conn = get_connection()
+        cursor = conn.cursor()
+        cursor.execute('SELECT profile_id FROM user_taste_profiles')
+        rows = cursor.fetchall()
+        conn.close()
+
+        profile_ids = [row['profile_id'] for row in rows]
+        return jsonify({
+            'success': True,
+            'profile_ids': profile_ids
+        })
+
+    except Exception as e:
+        return jsonify({
+            'success': False,
+            'error': str(e)
+        }), 500
+
+
+@app.route('/api/swipe-analytics', methods=['GET'])
+def get_swipe_analytics():
+    """
+    Get swipe pattern analytics.
+    """
+    try:
+        patterns = get_swipe_patterns()
+        summary = get_swipe_summary()
+
+        return jsonify({
+            'success': True,
+            'patterns': patterns,
+            'summary': summary
+        })
+
+    except Exception as e:
         return jsonify({
             'success': False,
             'error': str(e)

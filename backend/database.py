@@ -8,7 +8,8 @@ import json
 from datetime import datetime
 from typing import Optional, List, Dict, Any
 
-DATABASE_PATH = 'data/feedmovie.db'
+import os
+DATABASE_PATH = os.path.join(os.path.dirname(__file__), '..', 'data', 'feedmovie.db')
 
 
 def get_connection():
@@ -38,6 +39,9 @@ def init_database():
             tmdb_rating REAL,
             imdb_rating REAL,
             rt_rating TEXT,
+            directors TEXT,  -- JSON array
+            cast_members TEXT,  -- JSON array
+            awards TEXT,
             created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
         )
     ''')
@@ -90,6 +94,15 @@ def init_database():
         )
     ''')
 
+    # User taste profiles table
+    cursor.execute('''
+        CREATE TABLE IF NOT EXISTS user_taste_profiles (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            profile_id TEXT NOT NULL,
+            created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+        )
+    ''')
+
     # Set default settings
     cursor.execute('''
         INSERT OR IGNORE INTO settings (key, value)
@@ -105,7 +118,9 @@ def add_movie(tmdb_id: int, title: str, year: int,
               genres: List[str], poster_path: Optional[str],
               streaming_providers: Dict[str, Any], overview: str,
               imdb_id: Optional[str] = None, tmdb_rating: Optional[float] = None,
-              imdb_rating: Optional[float] = None, rt_rating: Optional[str] = None) -> int:
+              imdb_rating: Optional[float] = None, rt_rating: Optional[str] = None,
+              directors: Optional[List[str]] = None, cast: Optional[List[str]] = None,
+              awards: Optional[str] = None) -> int:
     """Add a movie to the database or return existing ID."""
     conn = get_connection()
     cursor = conn.cursor()
@@ -137,6 +152,15 @@ def add_movie(tmdb_id: int, title: str, year: int,
         if streaming_providers:
             updates.append("streaming_providers = ?")
             params.append(json.dumps(streaming_providers))
+        if directors:
+            updates.append("directors = ?")
+            params.append(json.dumps(directors))
+        if cast:
+            updates.append("cast_members = ?")
+            params.append(json.dumps(cast))
+        if awards:
+            updates.append("awards = ?")
+            params.append(awards)
 
         if updates:
             params.append(tmdb_id)
@@ -154,11 +178,12 @@ def add_movie(tmdb_id: int, title: str, year: int,
     cursor.execute('''
         INSERT INTO movies (tmdb_id, title, year, genres, poster_path,
                           streaming_providers, overview, imdb_id, tmdb_rating,
-                          imdb_rating, rt_rating)
-        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                          imdb_rating, rt_rating, directors, cast_members, awards)
+        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
     ''', (tmdb_id, title, year, json.dumps(genres), poster_path,
           json.dumps(streaming_providers), overview, imdb_id, tmdb_rating,
-          imdb_rating, rt_rating))
+          imdb_rating, rt_rating, json.dumps(directors) if directors else None,
+          json.dumps(cast) if cast else None, awards))
 
     movie_id = cursor.lastrowid
     conn.commit()
@@ -248,7 +273,7 @@ def get_movie_by_tmdb_id(tmdb_id: int) -> Optional[Dict[str, Any]]:
     }
 
 
-def get_watched_movie_ids() -> List[int]:
+def get_watched_movie_ids(user: str = 'vikram14s') -> List[int]:
     """Get list of TMDB IDs for movies the user has watched."""
     conn = get_connection()
     cursor = conn.cursor()
@@ -257,7 +282,8 @@ def get_watched_movie_ids() -> List[int]:
         SELECT DISTINCT m.tmdb_id
         FROM ratings r
         JOIN movies m ON r.movie_id = m.id
-    ''')
+        WHERE r.user = ?
+    ''', (user,))
 
     movie_ids = [row['tmdb_id'] for row in cursor.fetchall()]
     conn.close()
@@ -287,6 +313,7 @@ def get_top_recommendations(limit: int = 50, genres: Optional[List[str]] = None)
             m.title, m.year, m.poster_path, m.genres, m.overview,
             m.streaming_providers, m.tmdb_id, m.imdb_id,
             m.tmdb_rating, m.imdb_rating, m.rt_rating,
+            m.directors, m.cast_members, m.awards,
             GROUP_CONCAT(DISTINCT r.source) as sources,
             AVG(r.score) as avg_score,
             MAX(r.reasoning) as reasoning,
@@ -317,6 +344,9 @@ def get_top_recommendations(limit: int = 50, genres: Optional[List[str]] = None)
             'tmdb_rating': row['tmdb_rating'],
             'imdb_rating': row['imdb_rating'],
             'rt_rating': row['rt_rating'],
+            'directors': json.loads(row['directors']) if row['directors'] else [],
+            'cast': json.loads(row['cast_members']) if row['cast_members'] else [],
+            'awards': row['awards'],
             'sources': row['sources'].split(',') if row['sources'] else [],
             'score': row['avg_score'],
             'reasoning': row['reasoning'],
@@ -399,6 +429,7 @@ def get_watchlist(user: str = 'vikram14s') -> List[Dict[str, Any]]:
         SELECT DISTINCT
             m.title, m.year, m.poster_path, m.genres, m.overview,
             m.streaming_providers, m.tmdb_id,
+            m.directors, m.cast_members, m.awards,
             GROUP_CONCAT(r.source) as sources,
             AVG(r.score) as avg_score,
             GROUP_CONCAT(r.reasoning, ' | ') as all_reasoning,
@@ -422,6 +453,9 @@ def get_watchlist(user: str = 'vikram14s') -> List[Dict[str, Any]]:
             'overview': row['overview'],
             'streaming_providers': json.loads(row['streaming_providers']) if row['streaming_providers'] else {},
             'tmdb_id': row['tmdb_id'],
+            'directors': json.loads(row['directors']) if row['directors'] else [],
+            'cast': json.loads(row['cast_members']) if row['cast_members'] else [],
+            'awards': row['awards'],
             'sources': row['sources'].split(',') if row['sources'] else [],
             'score': row['avg_score'],
             'reasoning': row['all_reasoning'],

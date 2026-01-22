@@ -60,12 +60,13 @@ def get_ratings_by_imdb_id(imdb_id: str) -> Optional[Dict[str, Any]]:
             cache[cache_key] = None
             return None
 
-        # Parse ratings
+        # Parse ratings and awards
         result = {
             'imdb_rating': None,
             'imdb_votes': None,
             'rt_rating': None,
-            'metacritic_rating': None
+            'metacritic_rating': None,
+            'awards': None
         }
 
         # IMDb rating
@@ -85,6 +86,10 @@ def get_ratings_by_imdb_id(imdb_id: str) -> Optional[Dict[str, Any]]:
                 result['rt_rating'] = value  # e.g., "94%"
             elif source == 'Metacritic':
                 result['metacritic_rating'] = value.split('/')[0] if '/' in value else value
+
+        # Awards (e.g., "Won 2 Oscars. 50 wins & 123 nominations total")
+        if data.get('Awards') and data['Awards'] != 'N/A':
+            result['awards'] = data['Awards']
 
         # Cache for 30 days
         cache.set(cache_key, result, expire=2592000)

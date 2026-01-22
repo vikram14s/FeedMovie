@@ -2,6 +2,7 @@
 AI Ensemble: Claude + ChatGPT + Gemini with web search.
 
 Each model independently recommends movies based on Letterboxd ratings.
+Uses enhanced taste profiles for better personalization.
 Requires API keys in .env file.
 """
 
@@ -9,6 +10,9 @@ import os
 import json
 from typing import List, Dict, Any
 from dotenv import load_dotenv
+from taste_analyzer import build_taste_profile, format_taste_profile_for_prompt
+from swipe_analytics import get_feedback_prompt_section
+from database import get_all_friends, get_all_ratings, get_watched_movie_ids
 
 load_dotenv()
 
@@ -59,9 +63,134 @@ def format_ratings_for_prompt(ratings: List[Dict[str, Any]]) -> str:
     return '\n'.join(lines)
 
 
-def get_claude_recommendations(ratings: List[Dict[str, Any]], count: int = 15) -> List[Dict[str, Any]]:
+def get_friend_recommendations_context(min_compatibility: float = 50.0, max_friends: int = 5) -> str:
     """
-    Get movie recommendations from Claude Opus 4.5.
+    Get friend recommendations context for AI prompts.
+
+    Finds movies that highly compatible friends loved but user hasn't seen.
+
+    Args:
+        min_compatibility: Minimum compatibility score (0-100)
+        max_friends: Maximum number of friends to include
+
+    Returns:
+        Formatted string for AI prompt, e.g.:
+        "### FRIEND RECOMMENDATIONS
+         Alice (78% match) loves: Movie1 (4.5★), Movie2 (5★)
+         Bob (65% match) loves: Movie3 (5★)"
+    """
+    friends = get_all_friends()
+
+    if not friends:
+        return ""
+
+    # Filter by compatibility and limit
+    compatible_friends = [
+        f for f in friends
+        if f.get('compatibility_score') and f['compatibility_score'] >= min_compatibility
+    ][:max_friends]
+
+    if not compatible_friends:
+        return ""
+
+    # Get user's watched movie IDs
+    watched_ids = set(get_watched_movie_ids())
+
+    lines = ["### FRIEND RECOMMENDATIONS"]
+    lines.append("These are movies your friends with similar taste loved:\n")
+
+    for friend in compatible_friends:
+        friend_name = friend['name']
+        friend_username = friend.get('letterboxd_username', friend_name)
+        compatibility = friend['compatibility_score']
+
+        # Get friend's high-rated movies
+        friend_ratings = get_all_ratings(user=friend_username)
+
+        # Filter to 4+ star ratings that user hasn't seen
+        friend_favorites = [
+            r for r in friend_ratings
+            if r['rating'] >= 4.0 and r.get('tmdb_id') not in watched_ids
+        ][:5]  # Top 5 favorites
+
+        if friend_favorites:
+            movies_str = ', '.join([
+                f"{r['title']} ({r['rating']}★)"
+                for r in friend_favorites
+            ])
+            lines.append(f"**{friend_name}** ({compatibility:.0f}% match) loves: {movies_str}")
+
+    if len(lines) <= 2:  # Only header, no actual recommendations
+        return ""
+
+    lines.append("\n→ Consider recommending these friend-endorsed movies!")
+
+    return '\n'.join(lines)
+
+
+def build_enhanced_prompt(ratings: List[Dict[str, Any]], count: int, friend_context: str = "") -> str:
+    """
+    Build enhanced prompt with full taste profile and swipe feedback.
+    """
+    # Build taste profile
+    profile = build_taste_profile(ratings)
+    taste_text = format_taste_profile_for_prompt(profile)
+
+    # Get swipe feedback (if enough data)
+    feedback_text = get_feedback_prompt_section()
+
+    # Get anti-preferences for explicit avoidance
+    anti = profile.get('anti_preferences', {})
+    disliked_genres = anti.get('disliked_genres', [])
+    avoid_text = f"AVOID these genres/types: {', '.join(disliked_genres)}" if disliked_genres else ""
+
+    prompt = f"""## YOUR TASTE PROFILE
+
+{taste_text}
+
+{feedback_text}
+
+{friend_context}
+
+---
+
+## RECOMMENDATION REQUEST
+
+Recommend {count} movies I haven't seen that match my taste profile.
+
+### CRITICAL REQUIREMENTS:
+1. **RECENCY**: At least 40% of recommendations must be from 2024-2025 (recent releases)
+2. **GENRE DIVERSITY**: Include variety across Action, Comedy, Drama, Sci-Fi, Horror, Romance
+3. **PERSONALIZATION**: Reference specific movies from my profile in your reasoning
+{f"4. **{avoid_text}**" if avoid_text else ""}
+
+### For each movie provide:
+- Title (Year)
+- Personalized reasoning that references my specific favorites or patterns
+- Streaming availability if known
+
+### REASONING QUALITY:
+Good: "Like Whiplash, this features an intense mentor relationship and jazz music themes"
+Bad: "You'll enjoy this drama"
+
+Format as JSON array:
+[
+  {{
+    "title": "Movie Title",
+    "year": 2024,
+    "reasoning": "Specific reason referencing your taste...",
+    "streaming": "Netflix"
+  }}
+]
+
+Return only the JSON array."""
+
+    return prompt
+
+
+def get_claude_recommendations(ratings: List[Dict[str, Any]], count: int = 15, friend_context: str = "") -> List[Dict[str, Any]]:
+    """
+    Get movie recommendations from Claude Opus 4.5 with enhanced taste profile.
     """
     if not ANTHROPIC_KEY:
         print("⚠️  Skipping Claude: ANTHROPIC_API_KEY not set")
@@ -69,49 +198,7 @@ def get_claude_recommendations(ratings: List[Dict[str, Any]], count: int = 15) -
 
     print("🤖 Getting recommendations from Claude Opus 4.5...")
 
-    ratings_text = format_ratings_for_prompt(ratings)
-    top_movies = [r['title'] for r in sorted(ratings, key=lambda x: x['rating'], reverse=True)[:10]]
-    top_movies_str = ', '.join(top_movies)
-
-    prompt = f"""Based on these Letterboxd ratings:
-{ratings_text}
-
-My top favorites: {top_movies_str}
-
-Please recommend {count} movies I haven't seen that I would likely enjoy.
-
-IMPORTANT: Ensure GENRE DIVERSITY - include at least 3-4 movies from EACH of these genres:
-- Action (including thrillers with action)
-- Comedy (including dark comedy, romantic comedy)
-- Drama (character-driven stories)
-- Sci-Fi/Fantasy
-- Horror/Thriller
-- Romance
-
-Consider:
-1. Recent acclaimed films (2020-2025) in similar genres
-2. Hidden gems and cult classics that match my taste
-3. Movies from different eras that share themes with my favorites
-4. International cinema that fits my preferences
-
-For each movie, provide:
-- Title (Year)
-- One sentence explaining why I'd like it based on my rating patterns
-- Streaming availability if known (e.g., "Netflix", "Prime Video", "Max")
-
-Focus on quality recommendations that truly match my taste profile, but PRIORITIZE GENRE DIVERSITY.
-
-Format as JSON array:
-[
-  {{
-    "title": "Movie Title",
-    "year": 2023,
-    "reasoning": "You'll love this because...",
-    "streaming": "Netflix, Prime Video"
-  }}
-]
-
-Return only the JSON array, no other text."""
+    prompt = build_enhanced_prompt(ratings, count, friend_context)
 
     try:
         # Use Claude Opus 4.5 (released Nov 2025) for best quality recommendations
@@ -141,9 +228,9 @@ Return only the JSON array, no other text."""
         return []
 
 
-def get_chatgpt_recommendations(ratings: List[Dict[str, Any]], count: int = 15) -> List[Dict[str, Any]]:
+def get_chatgpt_recommendations(ratings: List[Dict[str, Any]], count: int = 15, friend_context: str = "") -> List[Dict[str, Any]]:
     """
-    Get movie recommendations from ChatGPT.
+    Get movie recommendations from ChatGPT with enhanced taste profile.
     """
     if not OPENAI_KEY:
         print("⚠️  Skipping ChatGPT: OPENAI_API_KEY not set")
@@ -151,43 +238,7 @@ def get_chatgpt_recommendations(ratings: List[Dict[str, Any]], count: int = 15) 
 
     print("🤖 Getting recommendations from ChatGPT...")
 
-    ratings_text = format_ratings_for_prompt(ratings)
-    top_movies = [r['title'] for r in sorted(ratings, key=lambda x: x['rating'], reverse=True)[:10]]
-    top_movies_str = ', '.join(top_movies)
-
-    prompt = f"""Based on these Letterboxd ratings:
-{ratings_text}
-
-My top favorites: {top_movies_str}
-
-Please recommend {count} movies I haven't seen that I would likely enjoy.
-
-IMPORTANT: Ensure GENRE DIVERSITY - include at least 3-4 movies from EACH of these genres:
-- Action (including thrillers with action)
-- Comedy (including dark comedy, romantic comedy)
-- Drama (character-driven stories)
-- Sci-Fi/Fantasy
-- Horror/Thriller
-- Romance
-
-For each movie, provide:
-- Title (Year)
-- One sentence explaining why I'd like it
-- Streaming availability if known
-
-PRIORITIZE GENRE DIVERSITY while matching my taste.
-
-Format as JSON array:
-[
-  {{
-    "title": "Movie Title",
-    "year": 2023,
-    "reasoning": "You'll love this because...",
-    "streaming": "Netflix, Prime Video"
-  }}
-]
-
-Return only the JSON array."""
+    prompt = build_enhanced_prompt(ratings, count, friend_context)
 
     try:
         response = openai_client.chat.completions.create(
@@ -218,9 +269,9 @@ Return only the JSON array."""
         return []
 
 
-def get_gemini_recommendations(ratings: List[Dict[str, Any]], count: int = 15) -> List[Dict[str, Any]]:
+def get_gemini_recommendations(ratings: List[Dict[str, Any]], count: int = 15, friend_context: str = "") -> List[Dict[str, Any]]:
     """
-    Get movie recommendations from Gemini 3 Pro with Google Search grounding.
+    Get movie recommendations from Gemini 3 Pro with Google Search grounding and enhanced taste profile.
     """
     if not GOOGLE_KEY:
         print("⚠️  Skipping Gemini: GOOGLE_API_KEY not set")
@@ -228,43 +279,7 @@ def get_gemini_recommendations(ratings: List[Dict[str, Any]], count: int = 15) -
 
     print("🤖 Getting recommendations from Gemini 3 Pro (with Google Search)...")
 
-    ratings_text = format_ratings_for_prompt(ratings)
-    top_movies = [r['title'] for r in sorted(ratings, key=lambda x: x['rating'], reverse=True)[:10]]
-    top_movies_str = ', '.join(top_movies)
-
-    prompt = f"""Based on these Letterboxd ratings:
-{ratings_text}
-
-My top favorites: {top_movies_str}
-
-Please recommend {count} movies I haven't seen that I would likely enjoy.
-
-IMPORTANT: Ensure GENRE DIVERSITY - include at least 3-4 movies from EACH of these genres:
-- Action (including thrillers with action)
-- Comedy (including dark comedy, romantic comedy)
-- Drama (character-driven stories)
-- Sci-Fi/Fantasy
-- Horror/Thriller
-- Romance
-
-For each movie, provide:
-- Title (Year)
-- One sentence explaining why I'd like it
-- Streaming availability if known
-
-PRIORITIZE GENRE DIVERSITY while matching my taste.
-
-Format as JSON array:
-[
-  {{
-    "title": "Movie Title",
-    "year": 2023,
-    "reasoning": "You'll love this because...",
-    "streaming": "Netflix, Prime Video"
-  }}
-]
-
-Return only the JSON array."""
+    prompt = build_enhanced_prompt(ratings, count, friend_context)
 
     try:
         # Use new Google GenAI client with search grounding
@@ -294,9 +309,14 @@ Return only the JSON array."""
         return []
 
 
-def get_all_ai_recommendations(ratings: List[Dict[str, Any]], count_per_model: int = 15) -> Dict[str, List[Dict[str, Any]]]:
+def get_all_ai_recommendations(ratings: List[Dict[str, Any]], count_per_model: int = 15, friend_context: str = None) -> Dict[str, List[Dict[str, Any]]]:
     """
-    Get recommendations from all available AI models.
+    Get recommendations from all available AI models with enhanced taste profiles.
+
+    Args:
+        ratings: User's movie ratings
+        count_per_model: Number of recommendations per AI model
+        friend_context: Optional friend recommendation context. If None, will auto-generate.
 
     Returns:
         {
@@ -305,16 +325,25 @@ def get_all_ai_recommendations(ratings: List[Dict[str, Any]], count_per_model: i
             'gemini': [...]
         }
     """
-    print("\n🎬 Generating AI recommendations...\n")
+    print("\n🎬 Generating AI recommendations with enhanced taste profile...\n")
+
+    # Auto-generate friend context if not provided
+    if friend_context is None:
+        friend_context = get_friend_recommendations_context()
+        if friend_context:
+            print("👥 Including friend recommendations in prompts\n")
+
+    # Ensure friend_context is a string
+    friend_context = friend_context or ""
 
     results = {
-        'claude': get_claude_recommendations(ratings, count_per_model),
-        'gemini': get_gemini_recommendations(ratings, count_per_model)
+        'claude': get_claude_recommendations(ratings, count_per_model, friend_context),
+        'gemini': get_gemini_recommendations(ratings, count_per_model, friend_context)
     }
 
     # Only add ChatGPT if OpenAI key is available
     if OPENAI_KEY:
-        results['chatgpt'] = get_chatgpt_recommendations(ratings, count_per_model)
+        results['chatgpt'] = get_chatgpt_recommendations(ratings, count_per_model, friend_context)
     else:
         print("⚠️  OpenAI API key not set, skipping ChatGPT (Claude and Gemini only)")
         results['chatgpt'] = []
