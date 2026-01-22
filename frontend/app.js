@@ -1360,14 +1360,27 @@ let profileData = null;
 
 async function loadProfile() {
     try {
-        const response = await fetch(`${API_URL}/profile`, {
-            headers: getAuthHeaders()
-        });
-        const data = await response.json();
+        // Load profile, library, and friends in parallel
+        const [profileRes, libraryRes, friendsRes] = await Promise.all([
+            fetch(`${API_URL}/profile`, { headers: getAuthHeaders() }),
+            fetch(`${API_URL}/profile/library`, { headers: getAuthHeaders() }),
+            fetch(`${API_URL}/profile/friends`, { headers: getAuthHeaders() })
+        ]);
 
-        if (data.success && data.profile) {
-            profileData = data.profile;
-            renderProfile(profileData);
+        const profileData = await profileRes.json();
+        const libraryData = await libraryRes.json();
+        const friendsData = await friendsRes.json();
+
+        if (profileData.success && profileData.profile) {
+            renderProfile(profileData.profile);
+        }
+
+        if (libraryData.success) {
+            renderLibrary(libraryData.library);
+        }
+
+        if (friendsData.success) {
+            renderFriends(friendsData.friends);
         }
     } catch (error) {
         console.error('Error loading profile:', error);
@@ -1382,10 +1395,14 @@ function renderProfile(profile) {
     document.getElementById('profile-username').textContent = username;
     document.getElementById('profile-bio').textContent = profile.bio || 'Add a bio to tell others about your taste';
 
-    // Stats
-    document.getElementById('profile-watched-count').textContent = profile.watched_count || 0;
-    document.getElementById('profile-avg-rating').textContent = profile.avg_rating ? profile.avg_rating.toFixed(1) : '-';
-    document.getElementById('profile-fav-genre').textContent = profile.favorite_genre || '-';
+    // Stats from profile.stats
+    const stats = profile.stats || {};
+    document.getElementById('profile-watched-count').textContent = stats.movies_watched || 0;
+    document.getElementById('profile-avg-rating').textContent = stats.avg_rating ? stats.avg_rating.toFixed(1) : '-';
+    document.getElementById('profile-fav-genre').textContent = stats.favorite_genres?.[0] || '-';
+
+    // Store for later
+    profileData = profile;
 
     // Recent activity
     const activityList = document.getElementById('profile-activity-list');
@@ -1394,13 +1411,14 @@ function renderProfile(profile) {
     if (profile.recent_activity && profile.recent_activity.length > 0) {
         activityEmpty.style.display = 'none';
         activityList.innerHTML = profile.recent_activity.map(activity => {
-            const posterUrl = activity.poster_path || 'https://via.placeholder.com/48x72?text=?';
+            const movie = activity.movie || {};
+            const posterUrl = movie.poster_path || 'https://via.placeholder.com/48x72?text=?';
             const stars = '★'.repeat(Math.floor(activity.rating || 0)) + '☆'.repeat(5 - Math.floor(activity.rating || 0));
             return `
                 <div class="profile-activity-item">
-                    <img src="${posterUrl}" alt="${activity.title}" class="profile-activity-poster">
+                    <img src="${posterUrl}" alt="${movie.title}" class="profile-activity-poster">
                     <div class="profile-activity-info">
-                        <div class="profile-activity-title">${activity.title}</div>
+                        <div class="profile-activity-title">${movie.title || 'Unknown'}</div>
                         <div class="profile-activity-detail">${stars} • ${formatTimeAgo(activity.created_at)}</div>
                     </div>
                 </div>
@@ -1409,6 +1427,51 @@ function renderProfile(profile) {
     } else {
         activityList.innerHTML = '';
         activityEmpty.style.display = 'block';
+    }
+}
+
+function renderLibrary(library) {
+    const libraryGrid = document.getElementById('profile-library-grid');
+    const libraryEmpty = document.getElementById('profile-library-empty');
+
+    if (library && library.length > 0) {
+        libraryEmpty.style.display = 'none';
+        libraryGrid.innerHTML = library.slice(0, 20).map(item => {
+            const movie = item.movie || {};
+            const posterUrl = movie.poster_path || 'https://via.placeholder.com/80x120?text=?';
+            return `
+                <div class="library-item">
+                    <img src="${posterUrl}" alt="${movie.title}" class="library-poster" title="${movie.title} (${movie.year})">
+                    <div class="library-rating">★ ${item.rating}</div>
+                </div>
+            `;
+        }).join('');
+    } else {
+        libraryGrid.innerHTML = '';
+        libraryEmpty.style.display = 'block';
+    }
+}
+
+function renderFriends(friends) {
+    const friendsList = document.getElementById('profile-friends-list');
+    const friendsEmpty = document.getElementById('profile-friends-empty');
+
+    if (friends && friends.length > 0) {
+        friendsEmpty.style.display = 'none';
+        friendsList.innerHTML = '<div class="friends-list">' + friends.map(friend => {
+            const initial = (friend.name || 'F').charAt(0).toUpperCase();
+            const score = friend.compatibility_score ? `${Math.round(friend.compatibility_score * 100)}%` : '';
+            return `
+                <div class="friend-item">
+                    <div class="friend-avatar">${initial}</div>
+                    <span class="friend-name">${friend.name}</span>
+                    ${score ? `<span class="friend-score">${score}</span>` : ''}
+                </div>
+            `;
+        }).join('') + '</div>';
+    } else {
+        friendsList.innerHTML = '';
+        friendsEmpty.style.display = 'block';
     }
 }
 

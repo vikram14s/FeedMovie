@@ -37,7 +37,7 @@
         }
 
         .container {
-            max-width: 480px;
+            max-width: 640px;
             margin: 0 auto;
             padding-bottom: 100px;
         }
@@ -80,26 +80,20 @@
         /* Filter Pills */
         .filter-pills {
             display: flex;
-            gap: 8px;
-            overflow-x: auto;
+            gap: 6px;
+            flex-wrap: wrap;
             padding: 4px 0;
-            -ms-overflow-style: none;
-            scrollbar-width: none;
-        }
-
-        .filter-pills::-webkit-scrollbar {
-            display: none;
         }
 
         .pill {
             display: inline-flex;
             align-items: center;
-            gap: 6px;
-            padding: 10px 16px;
-            border-radius: 24px;
+            gap: 5px;
+            padding: 8px 12px;
+            border-radius: 20px;
             border: 1px solid var(--border);
             background: var(--card-bg);
-            font-size: 14px;
+            font-size: 13px;
             font-weight: 500;
             color: var(--text-primary);
             cursor: pointer;
@@ -118,8 +112,8 @@
         }
 
         .pill svg {
-            width: 16px;
-            height: 16px;
+            width: 14px;
+            height: 14px;
         }
 
         /* Section Header */
@@ -1663,6 +1657,77 @@
             outline: none;
             border-color: var(--teal);
         }
+
+        /* Library Grid */
+        .library-grid {
+            display: grid;
+            grid-template-columns: repeat(4, 1fr);
+            gap: 8px;
+        }
+
+        .library-item {
+            position: relative;
+        }
+
+        .library-poster {
+            width: 100%;
+            aspect-ratio: 2/3;
+            object-fit: cover;
+            border-radius: 8px;
+        }
+
+        .library-rating {
+            position: absolute;
+            bottom: 4px;
+            right: 4px;
+            background: rgba(0,0,0,0.8);
+            color: var(--teal);
+            padding: 2px 6px;
+            border-radius: 4px;
+            font-size: 11px;
+            font-weight: 600;
+        }
+
+        /* Friends List */
+        .friends-list {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 12px;
+        }
+
+        .friend-item {
+            display: flex;
+            align-items: center;
+            gap: 10px;
+            padding: 10px 14px;
+            background: var(--teal-light);
+            border-radius: 24px;
+        }
+
+        .friend-avatar {
+            width: 32px;
+            height: 32px;
+            border-radius: 50%;
+            background: var(--teal);
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 14px;
+            font-weight: 600;
+            color: white;
+        }
+
+        .friend-name {
+            font-size: 14px;
+            font-weight: 500;
+            color: var(--text-primary);
+        }
+
+        .friend-score {
+            font-size: 12px;
+            color: var(--teal);
+            font-weight: 600;
+        }
     </style>
 </head>
 <body>
@@ -1811,7 +1876,7 @@
                     <svg fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z"></path></svg>
                     Profile
                 </button>
-                <button class="pill" onclick="changeGenres()" id="change-genres-pill" style="display: none;">
+                <button class="pill" onclick="changeGenres()" id="change-genres-pill">
                     <svg fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 6V4m0 2a2 2 0 100 4m0-4a2 2 0 110 4m-6 8a2 2 0 100-4m0 4a2 2 0 110-4m0 4v2m0-6V4m6 6v10m6-2a2 2 0 100-4m0 4a2 2 0 110-4m0 4v2m0-6V4"></path></svg>
                     Filters
                 </button>
@@ -1986,6 +2051,22 @@
                                 <div class="profile-stat-value" id="profile-fav-genre">-</div>
                                 <div class="profile-stat-label">Fav Genre</div>
                             </div>
+                        </div>
+                    </div>
+
+                    <div class="profile-section">
+                        <div class="profile-section-title">Friends</div>
+                        <div id="profile-friends-list"></div>
+                        <div id="profile-friends-empty" style="display: none;">
+                            <p style="text-align: center; color: var(--text-muted); padding: 20px;">No friends added yet</p>
+                        </div>
+                    </div>
+
+                    <div class="profile-section">
+                        <div class="profile-section-title">My Library</div>
+                        <div id="profile-library-grid" class="library-grid"></div>
+                        <div id="profile-library-empty" style="display: none;">
+                            <p style="text-align: center; color: var(--text-muted); padding: 20px;">No movies rated yet</p>
                         </div>
                     </div>
 

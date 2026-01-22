@@ -1263,19 +1263,19 @@ def get_user_stats(user_id: int) -> Dict[str, Any]:
     conn = get_connection()
     cursor = conn.cursor()
 
-    # Get movie count and average rating from reviews
+    # Get movie count and average rating from ratings table (includes Letterboxd imports)
     cursor.execute('''
         SELECT COUNT(*) as movie_count, AVG(rating) as avg_rating
-        FROM reviews WHERE user_id = ?
+        FROM ratings WHERE user_id = ?
     ''', (user_id,))
     row = cursor.fetchone()
     movie_count = row['movie_count'] or 0
     avg_rating = round(row['avg_rating'], 1) if row['avg_rating'] else 0
 
-    # Get favorite genres (most common from reviewed movies)
+    # Get favorite genres (most common from rated movies)
     cursor.execute('''
         SELECT m.genres
-        FROM reviews r
+        FROM ratings r
         JOIN movies m ON r.movie_id = m.id
         WHERE r.user_id = ?
     ''', (user_id,))
@@ -1307,6 +1307,40 @@ def get_user_stats(user_id: int) -> Dict[str, Any]:
         'favorite_genres': favorite_genres,
         'watchlist_count': watchlist_count
     }
+
+
+def get_user_library(user_id: int, limit: int = 100) -> List[Dict[str, Any]]:
+    """Get user's rated movies (their library)."""
+    conn = get_connection()
+    cursor = conn.cursor()
+
+    cursor.execute('''
+        SELECT r.rating, r.watched_date, r.created_at,
+               m.tmdb_id, m.title, m.year, m.poster_path, m.genres
+        FROM ratings r
+        JOIN movies m ON r.movie_id = m.id
+        WHERE r.user_id = ?
+        ORDER BY r.created_at DESC
+        LIMIT ?
+    ''', (user_id, limit))
+
+    library = []
+    for row in cursor.fetchall():
+        library.append({
+            'rating': row['rating'],
+            'watched_date': row['watched_date'],
+            'created_at': row['created_at'],
+            'movie': {
+                'tmdb_id': row['tmdb_id'],
+                'title': row['title'],
+                'year': row['year'],
+                'poster_path': row['poster_path'],
+                'genres': json.loads(row['genres']) if row['genres'] else []
+            }
+        })
+
+    conn.close()
+    return library
 
 
 if __name__ == '__main__':

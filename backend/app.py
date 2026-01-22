@@ -11,6 +11,7 @@ from database import (
     add_movie, add_rating, get_watchlist, remove_from_watchlist, get_connection,
     create_user, get_user_by_email, get_user_by_id, get_user_by_username,
     update_user_onboarding, get_onboarding_movies, init_database,
+    get_all_friends, get_user_library,
     # Social features
     create_or_update_review, get_user_reviews, get_movie_reviews,
     create_activity, get_friends_activity, get_user_activity,
@@ -1297,6 +1298,50 @@ def update_profile(current_user):
         return jsonify({
             'success': True,
             'message': 'Profile updated'
+        })
+
+    except Exception as e:
+        return jsonify({
+            'success': False,
+            'error': str(e)
+        }), 500
+
+
+@app.route('/api/profile/library', methods=['GET'])
+@require_auth
+def get_profile_library(current_user):
+    """Get user's rated movies (Letterboxd library)."""
+    try:
+        user_id = current_user['user_id']
+        limit = int(request.args.get('limit', 100))
+
+        library = get_user_library(user_id, limit)
+
+        return jsonify({
+            'success': True,
+            'count': len(library),
+            'library': library
+        })
+
+    except Exception as e:
+        return jsonify({
+            'success': False,
+            'error': str(e)
+        }), 500
+
+
+@app.route('/api/profile/friends', methods=['GET'])
+@require_auth
+def get_profile_friends(current_user):
+    """Get user's friends list."""
+    try:
+        user_id = current_user['user_id']
+        friends = get_all_friends(user_id)
+
+        return jsonify({
+            'success': True,
+            'count': len(friends),
+            'friends': friends
         })
 
     except Exception as e:
