@@ -908,14 +908,34 @@ function showNoMore() {
 // =============================================
 
 function switchTab(tab) {
-    const discoverPill = document.getElementById('discover-pill');
-    const watchlistPill = document.getElementById('watchlist-pill');
+    // Get all pills
+    const pills = ['discover', 'feed', 'watchlist', 'profile'];
+    pills.forEach(p => {
+        const pill = document.getElementById(`${p}-pill`);
+        if (pill) {
+            pill.classList.remove('active');
+        }
+    });
+
+    // Activate selected pill
+    const activePill = document.getElementById(`${tab}-pill`);
+    if (activePill) {
+        activePill.classList.add('active');
+    }
+
+    // Hide all views
+    document.getElementById('card-container').style.display = 'none';
+    document.getElementById('actions').style.display = 'none';
+    document.getElementById('keyboard-hints').style.display = 'none';
+    document.getElementById('no-more').style.display = 'none';
+    document.getElementById('stats-bar').style.display = 'none';
+    document.getElementById('watchlist-view').style.display = 'none';
+    document.getElementById('feed-view').style.display = 'none';
+    document.getElementById('profile-view').style.display = 'none';
+    document.getElementById('taste-profile-selection').style.display = 'none';
+    document.getElementById('genre-selection').style.display = 'none';
 
     if (tab === 'discover') {
-        discoverPill.classList.add('active');
-        watchlistPill.classList.remove('active');
-
-        document.getElementById('watchlist-view').style.display = 'none';
         document.getElementById('stats-bar').style.display = 'flex';
 
         if (recommendations.length > 0 && currentIndex < recommendations.length) {
@@ -924,19 +944,22 @@ function switchTab(tab) {
             document.getElementById('keyboard-hints').style.display = 'block';
         } else if (recommendations.length > 0) {
             document.getElementById('no-more').style.display = 'block';
+        } else {
+            // No recommendations loaded yet - show genre selection if needed
+            const savedGenres = localStorage.getItem('feedmovie_genres');
+            if (!savedGenres) {
+                document.getElementById('genre-selection').style.display = 'block';
+            }
         }
+    } else if (tab === 'feed') {
+        document.getElementById('feed-view').style.display = 'block';
+        loadFeed();
     } else if (tab === 'watchlist') {
-        discoverPill.classList.remove('active');
-        watchlistPill.classList.add('active');
-
-        document.getElementById('card-container').style.display = 'none';
-        document.getElementById('actions').style.display = 'none';
-        document.getElementById('keyboard-hints').style.display = 'none';
-        document.getElementById('no-more').style.display = 'none';
-        document.getElementById('stats-bar').style.display = 'none';
-
         document.getElementById('watchlist-view').style.display = 'block';
         loadWatchlist();
+    } else if (tab === 'profile') {
+        document.getElementById('profile-view').style.display = 'block';
+        loadProfile();
     }
 }
 
@@ -971,6 +994,7 @@ function createWatchlistItem(movie) {
     const posterUrl = movie.poster_path || 'https://via.placeholder.com/80x120?text=No+Poster';
     const streamingProviders = movie.streaming_providers || {};
     const allProviders = [...(streamingProviders.subscription || []), ...(streamingProviders.rent || [])];
+    const escapedTitle = movie.title.replace(/'/g, "\\'");
 
     return `
         <div class="watchlist-item">
@@ -984,11 +1008,20 @@ function createWatchlistItem(movie) {
                     ).join('')}
                 </div>
             </div>
-            <button class="remove-btn" onclick="removeFromWatchlist(${movie.tmdb_id})" title="Remove">
-                <svg width="20" height="20" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"></path>
-                </svg>
-            </button>
+            <div class="watchlist-actions">
+                <button class="mark-seen-btn" onclick="openMarkSeenModal(${movie.tmdb_id}, '${escapedTitle}')" title="Mark as watched">
+                    <svg width="14" height="14" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z"></path>
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z"></path>
+                    </svg>
+                    Watched
+                </button>
+                <button class="remove-btn" onclick="removeFromWatchlist(${movie.tmdb_id})" title="Remove">
+                    <svg width="20" height="20" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"></path>
+                    </svg>
+                </button>
+            </div>
         </div>
     `;
 }
@@ -1065,6 +1098,7 @@ async function submitRating() {
     if (selectedRating === 0) return;
 
     const movie = recommendations[currentIndex];
+    const reviewText = document.getElementById('review-text').value.trim();
 
     try {
         await fetch(`${API_URL}/add-rating`, {
@@ -1077,10 +1111,13 @@ async function submitRating() {
                 tmdb_id: movie.tmdb_id,
                 title: movie.title,
                 year: movie.year,
-                rating: selectedRating
+                rating: selectedRating,
+                review_text: reviewText
             })
         });
 
+        // Clear review text for next use
+        document.getElementById('review-text').value = '';
         closeModal();
         swipeLeft();
     } catch (error) {
@@ -1094,8 +1131,40 @@ async function submitRating() {
 
 function setupKeyboardControls() {
     document.addEventListener('keydown', (e) => {
-        if (document.getElementById('already-seen-modal').style.display === 'flex') {
-            if (e.key === 'Escape') closeModal();
+        // Handle ESC for all modals
+        if (e.key === 'Escape') {
+            if (document.getElementById('already-seen-modal').style.display === 'flex') {
+                closeModal();
+                return;
+            }
+            if (document.getElementById('search-modal').style.display === 'flex') {
+                closeSearchModal();
+                return;
+            }
+            if (document.getElementById('edit-bio-modal').style.display === 'flex') {
+                closeEditBioModal();
+                return;
+            }
+            if (document.getElementById('rate-search-modal').style.display === 'flex') {
+                closeRateSearchModal();
+                return;
+            }
+            if (document.getElementById('mark-seen-modal').style.display === 'flex') {
+                closeMarkSeenModal();
+                return;
+            }
+        }
+
+        // Don't handle swipe keys if any modal is open or if we're in an input
+        if (document.activeElement.tagName === 'INPUT' || document.activeElement.tagName === 'TEXTAREA') {
+            return;
+        }
+
+        if (document.getElementById('already-seen-modal').style.display === 'flex' ||
+            document.getElementById('search-modal').style.display === 'flex' ||
+            document.getElementById('edit-bio-modal').style.display === 'flex' ||
+            document.getElementById('rate-search-modal').style.display === 'flex' ||
+            document.getElementById('mark-seen-modal').style.display === 'flex') {
             return;
         }
 
@@ -1143,5 +1212,439 @@ async function generateMoreRecommendations() {
 
 function logout() {
     clearToken();
+    localStorage.removeItem('feedmovie_genres');
+    localStorage.removeItem('feedmovie_profiles');
+    localStorage.removeItem('feedmovie_profiles_completed');
     showAuthScreen();
+}
+
+// =============================================
+// FEED
+// =============================================
+
+let feedItems = [];
+
+async function loadFeed() {
+    document.getElementById('feed-loading').style.display = 'flex';
+    document.getElementById('feed-empty').style.display = 'none';
+    document.getElementById('feed-list').innerHTML = '';
+
+    try {
+        const response = await fetch(`${API_URL}/feed`, {
+            headers: getAuthHeaders()
+        });
+        const data = await response.json();
+
+        document.getElementById('feed-loading').style.display = 'none';
+
+        if (data.success && data.activities && data.activities.length > 0) {
+            feedItems = data.activities;
+            renderFeed(feedItems);
+        } else {
+            document.getElementById('feed-empty').style.display = 'block';
+        }
+    } catch (error) {
+        console.error('Error loading feed:', error);
+        document.getElementById('feed-loading').style.display = 'none';
+        document.getElementById('feed-empty').style.display = 'block';
+    }
+}
+
+function renderFeed(items) {
+    const container = document.getElementById('feed-list');
+    container.innerHTML = items.map(item => createFeedItem(item)).join('');
+}
+
+function createFeedItem(item) {
+    const posterUrl = item.movie?.poster_path || 'https://via.placeholder.com/80x120?text=No+Poster';
+    const avatar = item.user?.username?.charAt(0).toUpperCase() || '?';
+    const username = item.user?.username || 'Unknown';
+    const timeAgo = formatTimeAgo(item.created_at);
+    const rating = item.rating || 0;
+    const reviewText = item.review_text || '';
+    const movieTitle = item.movie?.title || 'Unknown Movie';
+    const movieYear = item.movie?.year || '';
+    const genres = (item.movie?.genres || []).slice(0, 2).join(', ');
+    const likeCount = item.like_count || 0;
+    const isLiked = item.is_liked || false;
+
+    const starsHtml = Array.from({ length: 5 }, (_, i) =>
+        `<span class="star ${i < rating ? '' : 'empty'}">★</span>`
+    ).join('');
+
+    return `
+        <div class="feed-item" data-activity-id="${item.id}">
+            <div class="feed-header">
+                <div class="feed-avatar">${avatar}</div>
+                <div class="feed-user-info">
+                    <div class="feed-username">${username}</div>
+                    <div class="feed-action-text">rated a movie</div>
+                </div>
+                <div class="feed-time">${timeAgo}</div>
+            </div>
+            <div class="feed-movie">
+                <img src="${posterUrl}" alt="${movieTitle}" class="feed-movie-poster">
+                <div class="feed-movie-info">
+                    <div class="feed-movie-title">${movieTitle}</div>
+                    <div class="feed-movie-meta">${movieYear}${genres ? ' • ' + genres : ''}</div>
+                    <div class="feed-rating">${starsHtml}</div>
+                    ${reviewText ? `<div class="feed-review-text">"${reviewText}"</div>` : ''}
+                </div>
+            </div>
+            <div class="feed-actions">
+                <button class="feed-action-btn ${isLiked ? 'liked' : ''}" onclick="toggleFeedLike(${item.id})">
+                    <svg fill="${isLiked ? 'currentColor' : 'none'}" stroke="currentColor" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4.318 6.318a4.5 4.5 0 000 6.364L12 20.364l7.682-7.682a4.5 4.5 0 00-6.364-6.364L12 7.636l-1.318-1.318a4.5 4.5 0 00-6.364 0z"></path>
+                    </svg>
+                    ${likeCount > 0 ? likeCount : ''}
+                </button>
+                <button class="feed-action-btn" onclick="addFeedMovieToWatchlist(${item.movie?.tmdb_id}, '${movieTitle.replace(/'/g, "\\'")}')">
+                    <svg fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 4v16m8-8H4"></path>
+                    </svg>
+                    Watchlist
+                </button>
+            </div>
+        </div>
+    `;
+}
+
+function formatTimeAgo(dateString) {
+    if (!dateString) return '';
+    const date = new Date(dateString);
+    const now = new Date();
+    const seconds = Math.floor((now - date) / 1000);
+
+    if (seconds < 60) return 'just now';
+    if (seconds < 3600) return `${Math.floor(seconds / 60)}m ago`;
+    if (seconds < 86400) return `${Math.floor(seconds / 3600)}h ago`;
+    if (seconds < 604800) return `${Math.floor(seconds / 86400)}d ago`;
+    return date.toLocaleDateString();
+}
+
+async function toggleFeedLike(activityId) {
+    try {
+        await fetch(`${API_URL}/feed/${activityId}/like`, {
+            method: 'POST',
+            headers: getAuthHeaders()
+        });
+        // Reload feed to get updated like status
+        loadFeed();
+    } catch (error) {
+        console.error('Error toggling like:', error);
+    }
+}
+
+async function addFeedMovieToWatchlist(tmdbId, title) {
+    try {
+        await fetch(`${API_URL}/feed/${tmdbId}/watchlist`, {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json',
+                ...getAuthHeaders()
+            }
+        });
+        alert(`Added "${title}" to your watchlist!`);
+        watchlistCount++;
+        updateWatchlistBadge(watchlistCount);
+    } catch (error) {
+        console.error('Error adding to watchlist:', error);
+    }
+}
+
+// =============================================
+// PROFILE
+// =============================================
+
+let profileData = null;
+
+async function loadProfile() {
+    try {
+        const response = await fetch(`${API_URL}/profile`, {
+            headers: getAuthHeaders()
+        });
+        const data = await response.json();
+
+        if (data.success && data.profile) {
+            profileData = data.profile;
+            renderProfile(profileData);
+        }
+    } catch (error) {
+        console.error('Error loading profile:', error);
+    }
+}
+
+function renderProfile(profile) {
+    const username = profile.username || currentUser?.username || 'User';
+    const initial = username.charAt(0).toUpperCase();
+
+    document.getElementById('profile-avatar').textContent = initial;
+    document.getElementById('profile-username').textContent = username;
+    document.getElementById('profile-bio').textContent = profile.bio || 'Add a bio to tell others about your taste';
+
+    // Stats
+    document.getElementById('profile-watched-count').textContent = profile.watched_count || 0;
+    document.getElementById('profile-avg-rating').textContent = profile.avg_rating ? profile.avg_rating.toFixed(1) : '-';
+    document.getElementById('profile-fav-genre').textContent = profile.favorite_genre || '-';
+
+    // Recent activity
+    const activityList = document.getElementById('profile-activity-list');
+    const activityEmpty = document.getElementById('profile-activity-empty');
+
+    if (profile.recent_activity && profile.recent_activity.length > 0) {
+        activityEmpty.style.display = 'none';
+        activityList.innerHTML = profile.recent_activity.map(activity => {
+            const posterUrl = activity.poster_path || 'https://via.placeholder.com/48x72?text=?';
+            const stars = '★'.repeat(Math.floor(activity.rating || 0)) + '☆'.repeat(5 - Math.floor(activity.rating || 0));
+            return `
+                <div class="profile-activity-item">
+                    <img src="${posterUrl}" alt="${activity.title}" class="profile-activity-poster">
+                    <div class="profile-activity-info">
+                        <div class="profile-activity-title">${activity.title}</div>
+                        <div class="profile-activity-detail">${stars} • ${formatTimeAgo(activity.created_at)}</div>
+                    </div>
+                </div>
+            `;
+        }).join('');
+    } else {
+        activityList.innerHTML = '';
+        activityEmpty.style.display = 'block';
+    }
+}
+
+function openEditBioModal() {
+    document.getElementById('bio-input').value = profileData?.bio || '';
+    document.getElementById('edit-bio-modal').style.display = 'flex';
+}
+
+function closeEditBioModal() {
+    document.getElementById('edit-bio-modal').style.display = 'none';
+}
+
+async function saveBio() {
+    const bio = document.getElementById('bio-input').value.trim();
+
+    try {
+        await fetch(`${API_URL}/profile`, {
+            method: 'PUT',
+            headers: {
+                'Content-Type': 'application/json',
+                ...getAuthHeaders()
+            },
+            body: JSON.stringify({ bio })
+        });
+
+        if (profileData) {
+            profileData.bio = bio;
+        }
+        document.getElementById('profile-bio').textContent = bio || 'Add a bio to tell others about your taste';
+        closeEditBioModal();
+    } catch (error) {
+        console.error('Error saving bio:', error);
+    }
+}
+
+// =============================================
+// SEARCH
+// =============================================
+
+let searchTimeout = null;
+let searchSelectedMovie = null;
+let searchRating = 0;
+
+function openSearchModal() {
+    document.getElementById('search-modal').style.display = 'flex';
+    document.getElementById('search-input').value = '';
+    document.getElementById('search-results').innerHTML = '<div class="search-empty">Start typing to search for movies</div>';
+    document.getElementById('search-input').focus();
+}
+
+function closeSearchModal() {
+    document.getElementById('search-modal').style.display = 'none';
+}
+
+function handleSearchInput(event) {
+    const query = event.target.value.trim();
+
+    if (searchTimeout) {
+        clearTimeout(searchTimeout);
+    }
+
+    if (query.length < 2) {
+        document.getElementById('search-results').innerHTML = '<div class="search-empty">Start typing to search for movies</div>';
+        return;
+    }
+
+    document.getElementById('search-results').innerHTML = '<div class="search-loading"><div class="spinner"></div><p>Searching...</p></div>';
+
+    searchTimeout = setTimeout(() => {
+        searchMovies(query);
+    }, 300);
+}
+
+async function searchMovies(query) {
+    try {
+        const response = await fetch(`${API_URL}/movies/search?q=${encodeURIComponent(query)}`, {
+            headers: getAuthHeaders()
+        });
+        const data = await response.json();
+
+        if (data.success && data.movies && data.movies.length > 0) {
+            renderSearchResults(data.movies);
+        } else {
+            document.getElementById('search-results').innerHTML = '<div class="search-empty">No movies found</div>';
+        }
+    } catch (error) {
+        console.error('Error searching movies:', error);
+        document.getElementById('search-results').innerHTML = '<div class="search-empty">Error searching. Try again.</div>';
+    }
+}
+
+function renderSearchResults(movies) {
+    const container = document.getElementById('search-results');
+    container.innerHTML = movies.map(movie => {
+        const posterUrl = movie.poster_path || 'https://via.placeholder.com/48x72?text=?';
+        return `
+            <div class="search-result-item" onclick="selectSearchMovie(${movie.tmdb_id}, '${movie.title.replace(/'/g, "\\'")}', ${movie.year || 'null'}, '${posterUrl.replace(/'/g, "\\'")}')">
+                <img src="${posterUrl}" alt="${movie.title}" class="search-result-poster">
+                <div class="search-result-info">
+                    <div class="search-result-title">${movie.title}</div>
+                    <div class="search-result-year">${movie.year || ''}</div>
+                </div>
+            </div>
+        `;
+    }).join('');
+}
+
+function selectSearchMovie(tmdbId, title, year, posterPath) {
+    searchSelectedMovie = { tmdb_id: tmdbId, title, year, poster_path: posterPath };
+    searchRating = 0;
+
+    document.getElementById('rate-search-movie-title').textContent = title;
+    document.getElementById('search-selected-rating').textContent = '-';
+    document.getElementById('search-review-text').value = '';
+    document.getElementById('submit-search-rating-btn').disabled = true;
+
+    // Reset stars
+    const stars = document.querySelectorAll('#rate-search-stars .star');
+    stars.forEach(star => star.classList.remove('filled'));
+
+    closeSearchModal();
+    document.getElementById('rate-search-modal').style.display = 'flex';
+}
+
+function handleSearchRatingClick(rating) {
+    searchRating = rating;
+    document.getElementById('search-selected-rating').textContent = rating;
+    document.getElementById('submit-search-rating-btn').disabled = false;
+
+    const stars = document.querySelectorAll('#rate-search-stars .star');
+    stars.forEach((star, index) => {
+        if (index < rating) {
+            star.classList.add('filled');
+        } else {
+            star.classList.remove('filled');
+        }
+    });
+}
+
+function closeRateSearchModal() {
+    document.getElementById('rate-search-modal').style.display = 'none';
+    searchSelectedMovie = null;
+    searchRating = 0;
+}
+
+async function submitSearchRating() {
+    if (!searchSelectedMovie || searchRating === 0) return;
+
+    const reviewText = document.getElementById('search-review-text').value.trim();
+
+    try {
+        await fetch(`${API_URL}/reviews`, {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json',
+                ...getAuthHeaders()
+            },
+            body: JSON.stringify({
+                tmdb_id: searchSelectedMovie.tmdb_id,
+                rating: searchRating,
+                review_text: reviewText
+            })
+        });
+
+        closeRateSearchModal();
+        alert(`Rated "${searchSelectedMovie.title}"!`);
+    } catch (error) {
+        console.error('Error submitting search rating:', error);
+    }
+}
+
+// =============================================
+// MARK SEEN (WATCHLIST)
+// =============================================
+
+let markSeenMovie = null;
+let markSeenRating = 0;
+
+function openMarkSeenModal(tmdbId, title) {
+    markSeenMovie = { tmdb_id: tmdbId, title };
+    markSeenRating = 0;
+
+    document.getElementById('mark-seen-movie-title').textContent = title;
+    document.getElementById('mark-seen-rating').textContent = '-';
+    document.getElementById('mark-seen-review-text').value = '';
+    document.getElementById('submit-mark-seen-btn').disabled = true;
+
+    // Reset stars
+    const stars = document.querySelectorAll('#mark-seen-stars .star');
+    stars.forEach(star => star.classList.remove('filled'));
+
+    document.getElementById('mark-seen-modal').style.display = 'flex';
+}
+
+function closeMarkSeenModal() {
+    document.getElementById('mark-seen-modal').style.display = 'none';
+    markSeenMovie = null;
+    markSeenRating = 0;
+}
+
+function handleMarkSeenRatingClick(rating) {
+    markSeenRating = rating;
+    document.getElementById('mark-seen-rating').textContent = rating;
+    document.getElementById('submit-mark-seen-btn').disabled = false;
+
+    const stars = document.querySelectorAll('#mark-seen-stars .star');
+    stars.forEach((star, index) => {
+        if (index < rating) {
+            star.classList.add('filled');
+        } else {
+            star.classList.remove('filled');
+        }
+    });
+}
+
+async function submitMarkSeen() {
+    if (!markSeenMovie || markSeenRating === 0) return;
+
+    const reviewText = document.getElementById('mark-seen-review-text').value.trim();
+
+    try {
+        await fetch(`${API_URL}/watchlist/${markSeenMovie.tmdb_id}/seen`, {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json',
+                ...getAuthHeaders()
+            },
+            body: JSON.stringify({
+                rating: markSeenRating,
+                review_text: reviewText
+            })
+        });
+
+        closeMarkSeenModal();
+        loadWatchlist(); // Refresh watchlist
+    } catch (error) {
+        console.error('Error marking as seen:', error);
+    }
 }
