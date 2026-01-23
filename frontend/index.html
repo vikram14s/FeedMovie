@@ -1199,6 +1199,91 @@
             margin-top: 12px;
         }
 
+        .onboarding-star.half {
+            position: relative;
+            color: var(--border);
+        }
+
+        .onboarding-star.half::before {
+            content: '★';
+            position: absolute;
+            left: 0;
+            top: 0;
+            width: 50%;
+            overflow: hidden;
+            color: var(--teal);
+        }
+
+        .onboarding-rating-display {
+            font-size: 14px;
+            color: var(--text-secondary);
+            margin-bottom: 16px;
+            min-height: 20px;
+        }
+
+        .onboarding-nav {
+            display: flex;
+            gap: 12px;
+            justify-content: center;
+            align-items: center;
+            margin-top: 8px;
+        }
+
+        .onboarding-nav-btn {
+            padding: 10px 20px;
+            border-radius: 12px;
+            border: 1px solid var(--border);
+            background: var(--card-bg);
+            color: var(--text-primary);
+            font-size: 14px;
+            font-weight: 500;
+            cursor: pointer;
+            transition: all 0.2s;
+        }
+
+        .onboarding-nav-btn:hover:not(:disabled) {
+            border-color: var(--teal);
+            color: var(--teal);
+        }
+
+        .onboarding-nav-btn:disabled {
+            opacity: 0.4;
+            cursor: not-allowed;
+        }
+
+        .onboarding-nav-btn.primary {
+            background: var(--teal);
+            border-color: var(--teal);
+            color: white;
+        }
+
+        .onboarding-nav-btn.primary:hover {
+            background: #166666;
+        }
+
+        .onboarding-stars {
+            display: flex;
+            justify-content: center;
+            gap: 8px;
+            margin-bottom: 8px;
+        }
+
+        .onboarding-star {
+            font-size: 36px;
+            color: var(--border);
+            cursor: pointer;
+            transition: color 0.15s, transform 0.1s;
+            user-select: none;
+        }
+
+        .onboarding-star:hover {
+            transform: scale(1.15);
+        }
+
+        .onboarding-star.filled {
+            color: var(--teal);
+        }
+
         /* Feed View */
         .feed-view {
             padding: 0 20px;

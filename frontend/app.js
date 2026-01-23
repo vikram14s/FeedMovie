@@ -380,6 +380,10 @@ function renderOnboardingProgress() {
         `Movie ${onboardingIndex + 1} of ${total}`;
 }
 
+// Store ratings by tmdb_id so we can update them
+let onboardingRatingsMap = {};
+let currentOnboardingRating = 0;
+
 function renderOnboardingCard() {
     if (onboardingIndex >= onboardingMovies.length) {
         finishSwipeOnboarding();
@@ -389,6 +393,9 @@ function renderOnboardingCard() {
     const movie = onboardingMovies[onboardingIndex];
     const container = document.getElementById('onboarding-card-container');
 
+    // Check if we already have a rating for this movie
+    currentOnboardingRating = onboardingRatingsMap[movie.tmdb_id] || 0;
+
     container.innerHTML = `
         <div class="onboarding-card">
             <img src="${movie.poster_path || 'https://via.placeholder.com/160x240?text=No+Poster'}"
@@ -396,45 +403,95 @@ function renderOnboardingCard() {
                  class="onboarding-movie-poster">
             <h3 class="onboarding-movie-title">${movie.title}</h3>
             <p class="onboarding-movie-year">${movie.year || ''}</p>
-            <div class="onboarding-stars">
+            <div class="onboarding-stars" id="onboarding-stars-container">
                 ${[1, 2, 3, 4, 5].map(star => `
-                    <span class="onboarding-star" data-star="${star}" onclick="rateOnboardingMovie(${star})">★</span>
+                    <span class="onboarding-star" data-star="${star}">★</span>
                 `).join('')}
             </div>
-            <button class="onboarding-skip-btn" onclick="skipOnboardingMovie()">Haven't seen it</button>
+            <div class="onboarding-rating-display" id="onboarding-rating-display">
+                ${currentOnboardingRating > 0 ? currentOnboardingRating + ' / 5' : 'Tap stars to rate (supports half stars)'}
+            </div>
+            <div class="onboarding-nav">
+                <button class="onboarding-nav-btn" onclick="prevOnboardingMovie()" ${onboardingIndex === 0 ? 'disabled' : ''}>
+                    ← Back
+                </button>
+                <button class="onboarding-skip-btn" onclick="skipOnboardingMovie()">Haven't seen it</button>
+                <button class="onboarding-nav-btn primary" onclick="nextOnboardingMovie()">
+                    Next →
+                </button>
+            </div>
         </div>
     `;
+
+    // Add click handlers for half-star support
+    setupOnboardingStarHandlers();
+    updateOnboardingStarDisplay();
 }
 
-function rateOnboardingMovie(rating) {
-    const movie = onboardingMovies[onboardingIndex];
+function setupOnboardingStarHandlers() {
+    const stars = document.querySelectorAll('.onboarding-star');
+    stars.forEach((star, index) => {
+        star.addEventListener('click', (e) => {
+            const rect = star.getBoundingClientRect();
+            const clickX = e.clientX - rect.left;
+            const isLeftHalf = clickX < rect.width / 2;
 
-    // Visual feedback
+            // Left half = x.5, right half = x.0
+            const rating = isLeftHalf ? index + 0.5 : index + 1;
+            setOnboardingRating(rating);
+        });
+    });
+}
+
+function setOnboardingRating(rating) {
+    const movie = onboardingMovies[onboardingIndex];
+    currentOnboardingRating = rating;
+    onboardingRatingsMap[movie.tmdb_id] = rating;
+
+    updateOnboardingStarDisplay();
+
+    // Update rating display
+    document.getElementById('onboarding-rating-display').textContent = rating + ' / 5';
+}
+
+function updateOnboardingStarDisplay() {
     const stars = document.querySelectorAll('.onboarding-star');
     stars.forEach((star, i) => {
-        if (i < rating) {
+        const starNum = i + 1;
+        star.classList.remove('filled', 'half');
+
+        if (currentOnboardingRating >= starNum) {
             star.classList.add('filled');
+        } else if (currentOnboardingRating >= starNum - 0.5) {
+            star.classList.add('half');
         }
     });
+}
 
-    // Save rating
-    onboardingRatings.push({
-        tmdb_id: movie.tmdb_id,
-        rating: rating
-    });
+function nextOnboardingMovie() {
+    onboardingIndex++;
+    if (onboardingIndex >= onboardingMovies.length) {
+        finishSwipeOnboarding();
+        return;
+    }
+    renderOnboardingProgress();
+    renderOnboardingCard();
+}
 
-    // Next movie after brief delay
-    setTimeout(() => {
-        onboardingIndex++;
+function prevOnboardingMovie() {
+    if (onboardingIndex > 0) {
+        onboardingIndex--;
         renderOnboardingProgress();
         renderOnboardingCard();
-    }, 300);
+    }
 }
 
 function skipOnboardingMovie() {
-    onboardingIndex++;
-    renderOnboardingProgress();
-    renderOnboardingCard();
+    // Remove any rating for this movie
+    const movie = onboardingMovies[onboardingIndex];
+    delete onboardingRatingsMap[movie.tmdb_id];
+
+    nextOnboardingMovie();
 }
 
 async function finishSwipeOnboarding() {
@@ -443,15 +500,21 @@ async function finishSwipeOnboarding() {
     document.getElementById('onboarding-loading-text').textContent = 'Saving your ratings...';
 
     try {
+        // Convert ratings map to array
+        const ratings = Object.entries(onboardingRatingsMap).map(([tmdb_id, rating]) => ({
+            tmdb_id: parseInt(tmdb_id),
+            rating: rating
+        }));
+
         // Save ratings if any
-        if (onboardingRatings.length > 0) {
+        if (ratings.length > 0) {
             await fetch(`${API_URL}/onboarding/swipe-ratings`, {
                 method: 'POST',
                 headers: {
                     'Content-Type': 'application/json',
                     ...getAuthHeaders()
                 },
-                body: JSON.stringify({ ratings: onboardingRatings })
+                body: JSON.stringify({ ratings })
             });
         }
 
