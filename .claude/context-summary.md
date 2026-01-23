@@ -1,17 +1,64 @@
 # FeedMovie Context Summary
 
-*Last updated: 2026-01-21*
+*Last updated: 2026-01-23*
 
 ## Project Overview
 
 FeedMovie is a multi-user movie recommendation platform with a Tinder-style swipe interface. It uses AI models (Claude, Gemini) combined with collaborative filtering to provide personalized recommendations based on Letterboxd rating history.
 
-## Recent Session Summary (Jan 21, 2026)
+## Recent Session Summary (Jan 23, 2026)
 
-### Features Added Today
+### Bug Fixes
 
-#### 1. Social Features (Backend)
-- **Database tables**: `reviews`, `activity`, `activity_likes` for social functionality
+#### 1. Logout Auth Bug - FIXED
+**Problem**: Logging in as one user showed another user's cached profile/data.
+**Cause**: JavaScript global variables (profileData, feedItems, recommendations, etc.) weren't being cleared on logout.
+**Fix**: Updated `logout()` function in `frontend/app.js` to reset all cached variables:
+```javascript
+function logout() {
+    clearToken();
+    localStorage.removeItem('feedmovie_genres');
+    localStorage.removeItem('feedmovie_profiles');
+    localStorage.removeItem('feedmovie_profiles_completed');
+
+    // Reset all cached data
+    profileData = null;
+    feedItems = [];
+    recommendations = [];
+    watchlistCount = 0;
+    currentIndex = 0;
+    stats = { liked: 0, skipped: 0 };
+    selectedGenres = [];
+    selectedProfiles = [];
+    // ... etc
+
+    showAuthScreen();
+}
+```
+
+### Test Suite Added
+
+Created `backend/tests/test_auth.py` with 13 test cases:
+- **TestRegistration**: success, missing fields, duplicate email, short password
+- **TestLogin**: success, wrong password, nonexistent user
+- **TestAuthenticatedEndpoints**: profile requires auth, profile with auth, profile returns correct user, feed requires auth
+- **TestUserIsolation**: watchlist isolation, library isolation
+
+Run tests with:
+```bash
+.venv/bin/python -m pytest backend/tests/test_auth.py -v
+```
+
+All 13 tests pass.
+
+---
+
+## Previous Session (Jan 21, 2026)
+
+### Social Features Added
+
+#### Backend
+- **Database tables**: `reviews`, `activity`, `activity_likes`
 - **User profile fields**: `bio`, `profile_picture_url` added to users table
 - **API endpoints**:
   - `GET /api/movies/search?q=` - Search TMDB for movies
@@ -23,64 +70,50 @@ FeedMovie is a multi-user movie recommendation platform with a Tinder-style swip
   - `GET /api/profile/friends` - User's friends list
   - `POST /api/watchlist/<tmdb_id>/seen` - Mark watchlist item as watched
 
-#### 2. Social Features (Frontend)
+#### Frontend
 - **Feed tab**: Scrollable Instagram-style feed of friend activity
 - **Profile tab**: User stats, friends list, movie library grid, recent activity
 - **Search modal**: Search any movie from TMDB to rate/review
 - **Mark Seen**: Button on watchlist items to mark as watched with rating
 
-#### 3. Dummy Friend Profiles
+#### Onboarding Improvements
+- **Half-star ratings**: Click left half of star = 0.5, right half = 1.0
+- **Back/Next navigation**: No auto-advance, user controls pace
+- **Rating stored in map**: Allows editing previous ratings
+
+#### Dummy Friend Profiles
 Created `backend/seed_friends.py` script that seeds 5 archetype friends:
-- `action_andy` - Action movies (Mad Max, John Wick, Top Gun Maverick)
-- `indie_iris` - A24/indie (Everything Everywhere, Moonlight, Lady Bird)
-- `scifi_sam` - Sci-fi (Dune, Arrival, Blade Runner 2049)
-- `horror_hannah` - Horror (Hereditary, The Witch, Get Out)
-- `comedy_chris` - Comedy (Grand Budapest Hotel, Barbie, Big Lebowski)
+- `action_andy` - Action movies
+- `indie_iris` - A24/indie films
+- `scifi_sam` - Sci-fi
+- `horror_hannah` - Horror
+- `comedy_chris` - Comedy
 
 Run with: `.venv/bin/python backend/seed_friends.py <username>`
 
-#### 4. UI Improvements
-- Wider container (640px) so nav pills don't need horizontal scrolling
-- Filters tab restored to nav bar
-- Profile shows Letterboxd library grid and friends list
+---
 
-### Key Technical Decisions
+## Key Technical Decisions
 
 1. **Profile stats use `ratings` table** (not `reviews`) - This is where Letterboxd imports go
 2. **Activity feed** joins on friends table by matching `letterboxd_username` or `username`
 3. **Reviews vs Ratings**: `reviews` table is for in-app reviews with text; `ratings` table is for imported/swipe ratings
 
-### User Preferences (from CLAUDE.md)
+## User Preferences (from CLAUDE.md)
 
-- Always use `uv` for Python
+- Always use `uv` for Python package management
 - Don't include Co-Authored-By in commits
 - Never ask permission for bash commands, git, file operations within this project
 - Only ask permission for: (1) internet access, (2) files outside FeedMovie folder
 
-### Current Test Account
+## Current Test Account
 
 - Username: `test`
 - Email: `test@test.com`
 - Password: `test12`
 - Has 5 seeded friends with activity
 
-### Parallel Work Setup
-
-Created `/parallelize` custom command at `.claude/commands/parallelize.md` for setting up git worktrees to parallelize tasks across multiple Claude Code terminals.
-
-### Files Modified Today
-
-**Backend:**
-- `backend/app.py` - Added social feature endpoints
-- `backend/database.py` - Added tables, migrations, CRUD functions
-- `backend/tmdb_client.py` - Added `search_movies()` function
-- `backend/seed_friends.py` - NEW: Script to seed dummy friends
-
-**Frontend:**
-- `frontend/index.html` - Added Feed, Profile views, CSS for library/friends
-- `frontend/app.js` - Added feed, profile, search, review functionality
-
-### Running the App
+## Running the App
 
 ```bash
 cd /Users/adi/Documents/FeedMovie
@@ -88,11 +121,22 @@ cd /Users/adi/Documents/FeedMovie
 # Access at http://localhost:5000
 ```
 
-### Git Status
+## Git Status
 
 All changes committed and pushed to `main` branch at https://github.com/vikram14s/FeedMovie
 
-### Known Issues / TODO
+## Key Files
+
+| File | Purpose |
+|------|---------|
+| `backend/app.py` | Flask API with all endpoints |
+| `backend/database.py` | SQLite schema, migrations, CRUD |
+| `backend/tmdb_client.py` | TMDB API integration |
+| `backend/seed_friends.py` | Script to create dummy friends |
+| `backend/tests/test_auth.py` | Auth test suite (13 tests) |
+| `frontend/app.js` | Main frontend JavaScript |
+| `frontend/index.html` | HTML + CSS for all views |
+
+## Known Issues / TODO
 
 - OMDB API key may be expired (401 errors) - ratings still work without it
-- `/parallelize` command not being recognized by Claude Code - may need restart or different location
