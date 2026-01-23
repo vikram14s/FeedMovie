@@ -1275,9 +1275,45 @@ async function generateMoreRecommendations() {
 
 function logout() {
     clearToken();
+
+    // Clear all localStorage items for this app
     localStorage.removeItem('feedmovie_genres');
     localStorage.removeItem('feedmovie_profiles');
     localStorage.removeItem('feedmovie_profiles_completed');
+
+    // Reset all cached data
+    profileData = null;
+    feedItems = [];
+    recommendations = [];
+    watchlistCount = 0;
+    currentIndex = 0;
+    stats = { liked: 0, skipped: 0 };
+    selectedGenres = [];
+    selectedProfiles = [];
+    totalUnshown = 0;
+    generationTriggered = false;
+
+    // Reset onboarding data
+    onboardingMovies = [];
+    onboardingRatings = [];
+    if (typeof onboardingRatingsMap !== 'undefined') {
+        onboardingRatingsMap = {};
+    }
+    onboardingIndex = 0;
+    if (typeof currentOnboardingRating !== 'undefined') {
+        currentOnboardingRating = 0;
+    }
+
+    // Clear UI elements
+    const elementsToEmpty = [
+        'profile-activity-list', 'profile-friends-list', 'profile-library-grid',
+        'feed-list', 'watchlist-grid', 'card-container'
+    ];
+    elementsToEmpty.forEach(id => {
+        const el = document.getElementById(id);
+        if (el) el.innerHTML = '';
+    });
+
     showAuthScreen();
 }
 
