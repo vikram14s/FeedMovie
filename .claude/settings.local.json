@@ -33,7 +33,12 @@
       "Bash(git push:*)",
       "Bash(git fetch:*)",
       "Bash(git merge:*)",
-      "Bash(git branch:*)"
+      "Bash(git branch:*)",
+      "Bash(npm create:*)",
+      "Bash(npm run build:*)",
+      "Bash(npm run dev:*)",
+      "Bash(git checkout:*)",
+      "Bash(git status:*)"
     ]
   }
 }
