@@ -8,13 +8,12 @@ providers = ["python", "node"]
 # Build frontend first, then install Python deps
 buildPhase = """
 cd frontend && npm ci && npm run build && cd .. && \
-pip install -r requirements.txt && \
-playwright install chromium --with-deps
+pip install -r requirements.txt
 """
 
 [deploy]
-# Start the Flask server
-startCommand = "cd backend && python app.py"
+# Install Playwright browsers at startup (they don't persist from build)
+startCommand = "playwright install chromium && cd backend && python app.py"
 
 # Health check
 healthcheckPath = "/api/health"
