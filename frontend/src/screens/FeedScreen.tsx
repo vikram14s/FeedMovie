@@ -4,10 +4,11 @@ import { FeedItem } from '../components/cards/FeedItem';
 import { Spinner } from '../components/ui/Spinner';
 import { Button } from '../components/ui/Button';
 import { useUIStore } from '../stores/uiStore';
+import type { Movie } from '../types';
 
 export function FeedScreen() {
   const { activities, isLoading, loadFeed, toggleLike, addToWatchlist } = useFeed();
-  const { setTab } = useUIStore();
+  const { setTab, openUserProfileModal, openMovieDetailModal, openAddFriendsModal } = useUIStore();
 
   const handleAddToWatchlist = useCallback(
     async (tmdbId: number, title: string) => {
@@ -17,6 +18,20 @@ export function FeedScreen() {
       }
     },
     [addToWatchlist]
+  );
+
+  const handleUserClick = useCallback(
+    (userId: number, username: string) => {
+      openUserProfileModal(userId, username);
+    },
+    [openUserProfileModal]
+  );
+
+  const handleMovieClick = useCallback(
+    (movie: Movie) => {
+      openMovieDetailModal(movie);
+    },
+    [openMovieDetailModal]
   );
 
   if (isLoading) {
@@ -34,9 +49,14 @@ export function FeedScreen() {
         <div className="empty-icon">👥</div>
         <h2 className="empty-title">No activity yet</h2>
         <p className="empty-text">Add friends to see their movie activity</p>
-        <Button variant="primary" onClick={() => setTab('profile')}>
-          Go to Profile
-        </Button>
+        <div style={{ display: 'flex', flexDirection: 'column', gap: '12px', alignItems: 'center' }}>
+          <Button variant="primary" onClick={openAddFriendsModal}>
+            Find Friends
+          </Button>
+          <Button variant="secondary" onClick={() => setTab('profile')}>
+            Go to Profile
+          </Button>
+        </div>
       </div>
     );
   }
@@ -57,6 +77,8 @@ export function FeedScreen() {
             activity={activity}
             onLike={toggleLike}
             onAddToWatchlist={handleAddToWatchlist}
+            onUserClick={handleUserClick}
+            onMovieClick={handleMovieClick}
           />
         ))}
       </div>

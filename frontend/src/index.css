@@ -1568,6 +1568,18 @@ body {
   border-bottom: 1px solid var(--border);
 }
 
+.profile-activity-item.clickable {
+  cursor: pointer;
+  transition: background 0.15s;
+  margin: 0 -12px;
+  padding: 12px;
+  border-radius: 8px;
+}
+
+.profile-activity-item.clickable:hover {
+  background: var(--teal-light);
+}
+
 .profile-activity-item:last-child {
   border-bottom: none;
 }
@@ -1713,6 +1725,60 @@ body {
   color: var(--text-secondary);
 }
 
+/* Search Tabs */
+.search-tabs {
+  display: flex;
+  border-bottom: 1px solid var(--border);
+  padding: 0 16px;
+}
+
+.search-tab {
+  flex: 1;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  padding: 12px;
+  background: none;
+  border: none;
+  font-size: 14px;
+  font-family: inherit;
+  color: var(--text-secondary);
+  cursor: pointer;
+  border-bottom: 2px solid transparent;
+  margin-bottom: -1px;
+  transition: color 0.2s, border-color 0.2s;
+}
+
+.search-tab:hover {
+  color: var(--text-primary);
+}
+
+.search-tab.active {
+  color: var(--teal);
+  border-bottom-color: var(--teal);
+  font-weight: 500;
+}
+
+.search-result-avatar {
+  width: 48px;
+  height: 48px;
+  border-radius: 50%;
+  background: linear-gradient(135deg, var(--teal), var(--coral));
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 18px;
+  font-weight: 600;
+  color: white;
+  flex-shrink: 0;
+}
+
+.search-result-meta {
+  font-size: 13px;
+  color: var(--text-muted);
+}
+
 /* Enhanced Review Modal */
 .review-textarea {
   width: 100%;
@@ -1770,6 +1836,15 @@ body {
 
 .library-item {
   position: relative;
+}
+
+.library-item.clickable {
+  cursor: pointer;
+  transition: transform 0.15s;
+}
+
+.library-item.clickable:hover {
+  transform: scale(1.05);
 }
 
 .library-poster {
@@ -1899,5 +1974,476 @@ body {
   font-weight: 600;
   color: var(--teal);
   text-decoration: none;
+}
+
+/* ============================================
+   MOVIE DETAIL MODAL
+   ============================================ */
+.movie-detail-modal {
+  max-width: 600px;
+  max-height: 90vh;
+  overflow: auto;
+}
+
+.movie-detail-header {
+  display: flex;
+  justify-content: flex-end;
+  margin-bottom: 8px;
+}
+
+.movie-detail-content {
+  padding: 0;
+}
+
+.movie-detail-poster-row {
+  display: flex;
+  gap: 16px;
+  margin-bottom: 16px;
+}
+
+.movie-detail-poster {
+  width: 120px;
+  height: 180px;
+  object-fit: cover;
+  border-radius: 12px;
+  flex-shrink: 0;
+}
+
+.movie-detail-poster-placeholder {
+  width: 120px;
+  height: 180px;
+  background: var(--border);
+  border-radius: 12px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: var(--text-muted);
+  font-size: 12px;
+}
+
+.movie-detail-info {
+  flex: 1;
+  min-width: 0;
+}
+
+.movie-detail-title {
+  font-size: 20px;
+  font-weight: 700;
+  color: var(--text-primary);
+  margin-bottom: 4px;
+  line-height: 1.2;
+}
+
+.movie-detail-year {
+  font-size: 14px;
+  color: var(--text-secondary);
+  margin-bottom: 12px;
+}
+
+.movie-detail-genres {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  margin-bottom: 12px;
+}
+
+.genre-tag {
+  padding: 4px 10px;
+  background: var(--teal-light);
+  color: var(--teal);
+  border-radius: 12px;
+  font-size: 12px;
+  font-weight: 500;
+}
+
+.movie-detail-rating {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 16px;
+  font-weight: 600;
+  color: var(--text-primary);
+}
+
+.movie-detail-overview {
+  margin-bottom: 16px;
+  font-size: 14px;
+  color: var(--text-secondary);
+  line-height: 1.6;
+}
+
+.movie-detail-reasoning {
+  background: var(--teal-light);
+  border-radius: 12px;
+  padding: 14px;
+  margin-bottom: 16px;
+}
+
+.reasoning-label {
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--teal);
+  margin-bottom: 6px;
+}
+
+.reasoning-text {
+  font-size: 14px;
+  color: var(--text-primary);
+  font-style: italic;
+  line-height: 1.5;
+}
+
+.movie-detail-actions {
+  display: flex;
+  gap: 12px;
+  margin-bottom: 20px;
+}
+
+.movie-detail-actions button {
+  flex: 1;
+}
+
+/* Friends Who Watched Section */
+.friends-watched-section {
+  background: var(--teal-light);
+  border-radius: 12px;
+  padding: 14px;
+  margin-bottom: 16px;
+}
+
+.friends-watched-header {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--teal);
+  margin-bottom: 10px;
+}
+
+.friends-watched-list {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+.friend-watched-item {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  background: white;
+  padding: 6px 10px;
+  border-radius: 20px;
+  transition: transform 0.15s;
+}
+
+.friend-watched-item:hover {
+  transform: scale(1.02);
+}
+
+.friend-watched-avatar {
+  width: 28px;
+  height: 28px;
+  border-radius: 50%;
+  background: var(--teal);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 12px;
+  font-weight: 600;
+  color: white;
+}
+
+.friend-watched-info {
+  display: flex;
+  flex-direction: column;
+}
+
+.friend-watched-name {
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--text-primary);
+  line-height: 1.2;
+}
+
+.friend-watched-rating {
+  font-size: 11px;
+  color: var(--teal);
+}
+
+.friends-watched-more {
+  display: flex;
+  align-items: center;
+  font-size: 12px;
+  color: var(--text-secondary);
+  padding: 6px 10px;
+}
+
+/* Review Form in Movie Detail */
+.review-form {
+  background: var(--bg);
+  border-radius: 12px;
+  padding: 16px;
+  margin-bottom: 20px;
+}
+
+.review-form h3 {
+  font-size: 16px;
+  font-weight: 600;
+  color: var(--text-primary);
+  margin-bottom: 12px;
+}
+
+.review-rating {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  margin-bottom: 12px;
+}
+
+.review-rating span {
+  font-size: 14px;
+  color: var(--text-secondary);
+}
+
+.review-form-actions {
+  display: flex;
+  gap: 12px;
+  align-items: center;
+}
+
+/* Reviews Section */
+.movie-detail-reviews {
+  border-top: 1px solid var(--border);
+  padding-top: 16px;
+}
+
+.movie-detail-reviews h3 {
+  font-size: 16px;
+  font-weight: 600;
+  color: var(--text-primary);
+  margin-bottom: 12px;
+}
+
+.reviews-loading, .no-reviews {
+  font-size: 14px;
+  color: var(--text-muted);
+  text-align: center;
+  padding: 20px;
+}
+
+.reviews-list {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.review-item {
+  background: var(--bg);
+  border-radius: 12px;
+  padding: 12px;
+}
+
+.review-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 8px;
+}
+
+.review-username {
+  font-size: 14px;
+  font-weight: 600;
+  color: var(--text-primary);
+}
+
+.review-rating {
+  color: var(--teal);
+  font-size: 14px;
+}
+
+.review-text {
+  font-size: 14px;
+  color: var(--text-secondary);
+  line-height: 1.5;
+}
+
+/* ============================================
+   USER PROFILE MODAL
+   ============================================ */
+.user-profile-modal {
+  max-width: 480px;
+}
+
+.user-profile-content {
+  padding: 0;
+}
+
+.user-profile-header {
+  text-align: center;
+  margin-bottom: 20px;
+}
+
+.user-profile-name {
+  font-size: 22px;
+  font-weight: 700;
+  color: var(--text-primary);
+  margin-bottom: 4px;
+}
+
+.user-profile-bio {
+  font-size: 14px;
+  color: var(--text-secondary);
+  line-height: 1.5;
+}
+
+.user-profile-stats {
+  display: flex;
+  justify-content: center;
+  gap: 32px;
+  margin-bottom: 20px;
+  padding: 16px;
+  background: var(--bg);
+  border-radius: 12px;
+}
+
+.user-profile-activity {
+  margin-top: 20px;
+}
+
+.user-profile-activity h3 {
+  font-size: 14px;
+  font-weight: 600;
+  color: var(--text-secondary);
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+  margin-bottom: 12px;
+}
+
+.activity-grid {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 10px;
+}
+
+.activity-movie {
+  position: relative;
+  cursor: pointer;
+  transition: transform 0.15s;
+}
+
+.activity-movie:hover {
+  transform: scale(1.05);
+}
+
+.activity-poster {
+  width: 100%;
+  aspect-ratio: 2/3;
+  object-fit: cover;
+  border-radius: 8px;
+}
+
+.activity-rating {
+  position: absolute;
+  bottom: 4px;
+  right: 4px;
+  background: rgba(0,0,0,0.8);
+  color: var(--teal);
+  padding: 3px 6px;
+  border-radius: 4px;
+  font-size: 11px;
+  font-weight: 600;
+}
+
+/* ============================================
+   ADD FRIENDS MODAL
+   ============================================ */
+.add-friends-modal {
+  max-width: 480px;
+}
+
+.user-results-list {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.user-result-item {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 12px;
+  background: var(--bg);
+  border-radius: 12px;
+}
+
+.user-result-avatar {
+  width: 44px;
+  height: 44px;
+  border-radius: 50%;
+  background: var(--teal);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 18px;
+  font-weight: 600;
+  color: white;
+  flex-shrink: 0;
+}
+
+.user-result-info {
+  flex: 1;
+  min-width: 0;
+}
+
+.user-result-name {
+  font-size: 15px;
+  font-weight: 600;
+  color: var(--text-primary);
+  margin-bottom: 2px;
+}
+
+.user-result-stats {
+  font-size: 13px;
+  color: var(--text-secondary);
+}
+
+/* Modal close button */
+.modal-close-btn {
+  background: none;
+  border: none;
+  color: var(--text-secondary);
+  cursor: pointer;
+  padding: 8px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 8px;
+  transition: all 0.15s;
+}
+
+.modal-close-btn:hover {
+  background: var(--bg);
+  color: var(--text-primary);
+}
+
+/* Clickable usernames in feed */
+.feed-username.clickable {
+  cursor: pointer;
+  transition: color 0.15s;
+}
+
+.feed-username.clickable:hover {
+  color: var(--teal);
+}
+
+/* Clickable movie posters in feed */
+.feed-movie-poster.clickable {
+  cursor: pointer;
+  transition: transform 0.15s;
+}
+
+.feed-movie-poster.clickable:hover {
+  transform: scale(1.02);
 }
 

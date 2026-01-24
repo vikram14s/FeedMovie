@@ -48,6 +48,17 @@ export function useWatchlist() {
     []
   );
 
+  const addToWatchlist = useCallback(async (tmdbId: number) => {
+    try {
+      await watchlistApi.add(tmdbId);
+      await loadWatchlist();
+      return true;
+    } catch (err) {
+      console.error('Error adding to watchlist:', err);
+      return false;
+    }
+  }, [loadWatchlist]);
+
   // Load on mount
   useEffect(() => {
     loadWatchlist();
@@ -61,5 +72,6 @@ export function useWatchlist() {
     loadWatchlist,
     removeFromWatchlist,
     markAsSeen,
+    addToWatchlist,
   };
 }
