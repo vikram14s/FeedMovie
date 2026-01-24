@@ -5,6 +5,9 @@ builder = "nixpacks"
 # Install both Node.js and Python
 providers = ["python", "node"]
 
+# Add system packages for Playwright/Chromium
+aptPkgs = ["libnss3", "libatk1.0-0", "libatk-bridge2.0-0", "libcups2", "libdrm2", "libxkbcommon0", "libxcomposite1", "libxdamage1", "libxfixes3", "libxrandr2", "libgbm1", "libasound2", "libpango-1.0-0", "libcairo2", "libglib2.0-0"]
+
 # Build frontend first, then install Python deps
 buildPhase = """
 cd frontend && npm ci && npm run build && cd .. && \
