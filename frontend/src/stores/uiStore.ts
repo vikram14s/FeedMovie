@@ -5,6 +5,7 @@ interface UIState {
   // Navigation
   activeTab: Tab;
   setTab: (tab: Tab) => void;
+  resetToDiscover: () => void;
 
   // Modals
   searchModalOpen: boolean;
@@ -30,6 +31,7 @@ export const useUIStore = create<UIState>((set) => ({
   // Navigation
   activeTab: 'discover',
   setTab: (tab) => set({ activeTab: tab }),
+  resetToDiscover: () => set({ activeTab: 'discover' }),
 
   // Modals
   searchModalOpen: false,

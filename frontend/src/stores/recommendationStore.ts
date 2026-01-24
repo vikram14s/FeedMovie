@@ -163,8 +163,31 @@ export const useRecommendationStore = create<RecommendationState>((set, get) => 
     set({ isLoading: true });
     try {
       await recommendationsApi.generateMore();
-      // Wait a bit then reload
-      await new Promise((resolve) => setTimeout(resolve, 3000));
+
+      // Poll for recommendations (AI generation can take 30-60 seconds)
+      const maxAttempts = 20;
+      const pollInterval = 3000; // 3 seconds between polls
+
+      for (let attempt = 0; attempt < maxAttempts; attempt++) {
+        await new Promise((resolve) => setTimeout(resolve, pollInterval));
+
+        // Try to load recommendations
+        const data = await recommendationsApi.get({ limit: 50 });
+
+        if (data.recommendations && data.recommendations.length > 0) {
+          set({
+            recommendations: data.recommendations,
+            totalUnshown: data.total_unshown,
+            currentIndex: 0,
+            isLoading: false,
+          });
+          return; // Success!
+        }
+
+        console.log(`Polling for recommendations... attempt ${attempt + 1}/${maxAttempts}`);
+      }
+
+      // After max attempts, just load whatever we have
       await get().loadRecommendations();
     } catch (error) {
       console.error('Error generating recommendations:', error);
