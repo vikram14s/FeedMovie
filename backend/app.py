@@ -1460,24 +1460,54 @@ def health():
     return jsonify({'status': 'ok'})
 
 
+# ============================================================
+# STATIC FILE SERVING (Frontend)
+# ============================================================
+
+import os
+
+# In production, serve from the built frontend/dist folder
+# In development, serve from frontend/ (source files)
+FRONTEND_DIR = os.path.join(os.path.dirname(__file__), '..', 'frontend', 'dist')
+if not os.path.exists(FRONTEND_DIR):
+    # Fallback to dev mode (source files)
+    FRONTEND_DIR = os.path.join(os.path.dirname(__file__), '..', 'frontend')
+
+
 @app.route('/')
 def index():
     """Serve the frontend."""
     from flask import send_from_directory
-    return send_from_directory('../frontend', 'index.html')
+    return send_from_directory(FRONTEND_DIR, 'index.html')
 
 
 @app.route('/<path:path>')
 def serve_static(path):
-    """Serve static files."""
+    """Serve static files, with SPA fallback for client-side routing."""
     from flask import send_from_directory
-    return send_from_directory('../frontend', path)
+
+    # Try to serve the file directly
+    file_path = os.path.join(FRONTEND_DIR, path)
+    if os.path.isfile(file_path):
+        return send_from_directory(FRONTEND_DIR, path)
+
+    # For SPA: return index.html for any non-file routes (client-side routing)
+    return send_from_directory(FRONTEND_DIR, 'index.html')
 
 
 if __name__ == '__main__':
+    # Use PORT from environment (Railway sets this) or default to 5000
+    port = int(os.environ.get('PORT', 5000))
+    is_production = os.environ.get('RAILWAY_ENVIRONMENT') or os.environ.get('PRODUCTION')
+
     print("\n🎬 Starting FeedMovie API server...")
-    print("🌐 Frontend: http://localhost:5000")
-    print("📡 API: http://localhost:5000/api/recommendations")
+    print(f"🌐 Server: http://localhost:{port}")
+    print(f"📡 API: http://localhost:{port}/api/recommendations")
+    print(f"🔧 Mode: {'Production' if is_production else 'Development'}")
     print("\n✨ Happy movie hunting!\n")
 
-    app.run(debug=True, host='0.0.0.0', port=5000)
+    app.run(
+        debug=not is_production,
+        host='0.0.0.0',
+        port=port
+    )

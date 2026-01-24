@@ -119,6 +119,8 @@ def update_user_onboarding(user_id: int, onboarding_type: str = None,
 
 def get_connection():
     """Get a connection to the SQLite database."""
+    # Ensure the data directory exists
+    os.makedirs(os.path.dirname(DATABASE_PATH), exist_ok=True)
     conn = sqlite3.connect(DATABASE_PATH)
     conn.row_factory = sqlite3.Row  # Return rows as dictionaries
     return conn
