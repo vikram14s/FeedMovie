@@ -1,6 +1,6 @@
 import { useState, useCallback } from 'react';
 import { useAuth } from '../hooks/useAuth';
-import { onboardingApi, profileApi } from '../api/client';
+import { onboardingApi, profileApi, searchApi } from '../api/client';
 import type { Movie } from '../types';
 import { Button } from '../components/ui/Button';
 import { StarRating } from '../components/ui/StarRating';
@@ -8,7 +8,10 @@ import { Spinner } from '../components/ui/Spinner';
 import { moodPresets, useRecommendationStore } from '../stores/recommendationStore';
 import { useUIStore } from '../stores/uiStore';
 
-type OnboardingStep = 'path' | 'letterboxd' | 'swipe' | 'profiles' | 'curators' | 'genres';
+type OnboardingStep = 'path' | 'letterboxd' | 'swipe' | 'search' | 'profiles' | 'curators' | 'genres';
+
+const SWIPE_MOVIE_COUNT = 10; // Number of movies to swipe through
+const MAX_SEARCH_ADDITIONS = 5; // Number of movies user can add via search
 
 // Curators/tastemakers that new users can follow
 const curatorProfiles = [
@@ -108,6 +111,89 @@ const tasteProfiles = [
   },
 ];
 
+// Search result item component with quick rating
+function SearchResultItem({
+  movie,
+  onAdd,
+}: {
+  movie: Movie;
+  onAdd: (rating: number) => void;
+}) {
+  const [selectedRating, setSelectedRating] = useState(0);
+
+  return (
+    <div
+      style={{
+        display: 'flex',
+        alignItems: 'center',
+        gap: '12px',
+        padding: '10px 12px',
+        background: 'var(--bg-secondary)',
+        borderRadius: '8px',
+        border: '1px solid var(--border)',
+      }}
+    >
+      {movie.poster_path ? (
+        <img
+          src={movie.poster_path}
+          alt={movie.title}
+          style={{ width: '40px', height: '60px', borderRadius: '4px', objectFit: 'cover' }}
+        />
+      ) : (
+        <div
+          style={{
+            width: '40px',
+            height: '60px',
+            borderRadius: '4px',
+            background: 'var(--bg-tertiary)',
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'center',
+            fontSize: '12px',
+            color: 'var(--text-muted)',
+          }}
+        >
+          🎬
+        </div>
+      )}
+
+      <div style={{ flex: 1, minWidth: 0 }}>
+        <div style={{ fontWeight: 500, fontSize: '14px', marginBottom: '2px' }}>
+          {movie.title}
+        </div>
+        <div style={{ fontSize: '12px', color: 'var(--text-muted)' }}>
+          {movie.year || ''}
+        </div>
+      </div>
+
+      <div style={{ display: 'flex', gap: '4px' }}>
+        {[1, 2, 3, 4, 5].map((rating) => (
+          <button
+            key={rating}
+            onClick={() => {
+              setSelectedRating(rating);
+              onAdd(rating);
+            }}
+            style={{
+              width: '28px',
+              height: '28px',
+              borderRadius: '4px',
+              border: selectedRating === rating ? '2px solid var(--accent)' : '1px solid var(--border)',
+              background: selectedRating === rating ? 'var(--accent)' : 'var(--bg-primary)',
+              color: selectedRating === rating ? 'white' : 'var(--text-primary)',
+              cursor: 'pointer',
+              fontSize: '12px',
+              fontWeight: 500,
+            }}
+          >
+            {rating}
+          </button>
+        ))}
+      </div>
+    </div>
+  );
+}
+
 export function OnboardingScreen() {
   const { user, setUser } = useAuth();
   const { setSelectedGenres, setSelectedMoods } = useRecommendationStore();
@@ -139,6 +225,13 @@ export function OnboardingScreen() {
   // Track onboarding type for conditional taste profiles
   const [onboardingType, setOnboardingType] = useState<'letterboxd' | 'swipe' | null>(null);
 
+  // Search step state (for adding more movies after swipe)
+  const [searchQuery, setSearchQuery] = useState('');
+  const [searchResults, setSearchResults] = useState<Movie[]>([]);
+  const [searchLoading, setSearchLoading] = useState(false);
+  const [addedMovies, setAddedMovies] = useState<Movie[]>([]);
+  const [addedMovieRatings, setAddedMovieRatings] = useState<Record<number, number>>({});
+
   const selectPath = useCallback((path: 'letterboxd' | 'swipe') => {
     setOnboardingType(path);
     if (path === 'letterboxd') {
@@ -154,7 +247,9 @@ export function OnboardingScreen() {
 
     try {
       const data = await onboardingApi.getMovies();
-      setOnboardingMovies(data.movies || []);
+      // Limit to SWIPE_MOVIE_COUNT movies
+      const limitedMovies = (data.movies || []).slice(0, SWIPE_MOVIE_COUNT);
+      setOnboardingMovies(limitedMovies);
       setOnboardingIndex(0);
       setOnboardingRatings({});
       setCurrentRating(0);
@@ -199,7 +294,8 @@ export function OnboardingScreen() {
 
   const nextOnboardingMovie = useCallback(() => {
     if (onboardingIndex >= onboardingMovies.length - 1) {
-      finishSwipeOnboarding();
+      // After swipe movies, go to search step
+      setStep('search');
     } else {
       setOnboardingIndex((i) => i + 1);
       const nextMovie = onboardingMovies[onboardingIndex + 1];
@@ -227,18 +323,65 @@ export function OnboardingScreen() {
     nextOnboardingMovie();
   }, [onboardingMovies, onboardingIndex, nextOnboardingMovie]);
 
+  // Search functions for adding more movies
+  const handleSearch = useCallback(async () => {
+    if (!searchQuery.trim()) return;
+
+    setSearchLoading(true);
+    try {
+      const data = await searchApi.movies(searchQuery.trim());
+      // Filter out movies already added
+      const addedIds = new Set(addedMovies.map((m) => m.tmdb_id));
+      const filteredResults = (data.results || []).filter(
+        (m) => !addedIds.has(m.tmdb_id)
+      );
+      setSearchResults(filteredResults.slice(0, 5)); // Show top 5 results
+    } catch (err) {
+      console.error('Search error:', err);
+      setSearchResults([]);
+    } finally {
+      setSearchLoading(false);
+    }
+  }, [searchQuery, addedMovies]);
+
+  const addMovieFromSearch = useCallback((movie: Movie, rating: number) => {
+    if (addedMovies.length >= MAX_SEARCH_ADDITIONS) return;
+
+    setAddedMovies((prev) => [...prev, movie]);
+    setAddedMovieRatings((prev) => ({ ...prev, [movie.tmdb_id]: rating }));
+    // Remove from search results
+    setSearchResults((prev) => prev.filter((m) => m.tmdb_id !== movie.tmdb_id));
+  }, [addedMovies]);
+
+  const removeAddedMovie = useCallback((tmdb_id: number) => {
+    setAddedMovies((prev) => prev.filter((m) => m.tmdb_id !== tmdb_id));
+    setAddedMovieRatings((prev) => {
+      const newRatings = { ...prev };
+      delete newRatings[tmdb_id];
+      return newRatings;
+    });
+  }, []);
+
   const finishSwipeOnboarding = async () => {
     setIsLoading(true);
     setLoadingText('Saving your ratings...');
 
     try {
-      const ratings = Object.entries(onboardingRatings).map(([tmdb_id, rating]) => ({
+      // Combine swipe ratings and search-added movie ratings
+      const swipeRatings = Object.entries(onboardingRatings).map(([tmdb_id, rating]) => ({
         tmdb_id: parseInt(tmdb_id),
         rating,
       }));
 
-      if (ratings.length > 0) {
-        await onboardingApi.submitSwipeRatings(ratings);
+      const searchRatings = Object.entries(addedMovieRatings).map(([tmdb_id, rating]) => ({
+        tmdb_id: parseInt(tmdb_id),
+        rating,
+      }));
+
+      const allRatings = [...swipeRatings, ...searchRatings];
+
+      if (allRatings.length > 0) {
+        await onboardingApi.submitSwipeRatings(allRatings);
       }
 
       // "Start Fresh" users see taste profiles
@@ -439,7 +582,7 @@ export function OnboardingScreen() {
             <div className="onboarding-option-content">
               <div className="onboarding-option-title">Start Fresh</div>
               <div className="onboarding-option-desc">
-                Rate 20 popular movies to help us learn your taste
+                Rate popular movies and add your favorites to help us learn your taste
               </div>
             </div>
           </div>
@@ -542,6 +685,112 @@ export function OnboardingScreen() {
         <p className="onboarding-counter">
           Movie {onboardingIndex + 1} of {onboardingMovies.length}
         </p>
+      </div>
+    );
+  }
+
+  // Search step - add more movies by searching
+  if (step === 'search') {
+    const canAddMore = addedMovies.length < MAX_SEARCH_ADDITIONS;
+    const ratedCount = Object.keys(onboardingRatings).length + addedMovies.length;
+
+    return (
+      <div className="container">
+        <div className="selection-card" style={{ maxWidth: '500px' }}>
+          <h2 className="selection-title">Add your favorites</h2>
+          <p className="selection-subtitle">
+            Search for movies you love ({addedMovies.length}/{MAX_SEARCH_ADDITIONS} added)
+          </p>
+
+          {/* Search input */}
+          <div style={{ display: 'flex', gap: '8px', marginBottom: '16px' }}>
+            <input
+              type="text"
+              className="form-input"
+              placeholder="Search for a movie..."
+              value={searchQuery}
+              onChange={(e) => setSearchQuery(e.target.value)}
+              onKeyDown={(e) => e.key === 'Enter' && handleSearch()}
+              style={{ flex: 1 }}
+            />
+            <Button variant="secondary" onClick={handleSearch} disabled={searchLoading}>
+              {searchLoading ? '...' : 'Search'}
+            </Button>
+          </div>
+
+          {/* Search results */}
+          {searchResults.length > 0 && canAddMore && (
+            <div style={{ marginBottom: '16px' }}>
+              <p style={{ fontSize: '12px', color: 'var(--text-muted)', marginBottom: '8px' }}>
+                Tap a rating to add the movie
+              </p>
+              <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
+                {searchResults.map((movie) => (
+                  <SearchResultItem
+                    key={movie.tmdb_id}
+                    movie={movie}
+                    onAdd={(rating) => addMovieFromSearch(movie, rating)}
+                  />
+                ))}
+              </div>
+            </div>
+          )}
+
+          {/* Added movies */}
+          {addedMovies.length > 0 && (
+            <div style={{ marginBottom: '16px' }}>
+              <p style={{ fontSize: '12px', color: 'var(--text-muted)', marginBottom: '8px' }}>
+                Your added movies
+              </p>
+              <div style={{ display: 'flex', flexDirection: 'column', gap: '6px' }}>
+                {addedMovies.map((movie) => (
+                  <div
+                    key={movie.tmdb_id}
+                    style={{
+                      display: 'flex',
+                      alignItems: 'center',
+                      justifyContent: 'space-between',
+                      padding: '8px 12px',
+                      background: 'var(--bg-secondary)',
+                      borderRadius: '8px',
+                    }}
+                  >
+                    <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                      <span style={{ fontWeight: 500 }}>{movie.title}</span>
+                      <span style={{ color: 'var(--text-muted)', fontSize: '13px' }}>
+                        ({movie.year})
+                      </span>
+                      <span style={{ color: 'var(--accent)', fontSize: '13px' }}>
+                        ★ {addedMovieRatings[movie.tmdb_id]}
+                      </span>
+                    </div>
+                    <button
+                      onClick={() => removeAddedMovie(movie.tmdb_id)}
+                      style={{
+                        background: 'none',
+                        border: 'none',
+                        color: 'var(--text-muted)',
+                        cursor: 'pointer',
+                        padding: '4px',
+                      }}
+                    >
+                      ✕
+                    </button>
+                  </div>
+                ))}
+              </div>
+            </div>
+          )}
+
+          <div className="selection-actions">
+            <Button variant="primary" onClick={finishSwipeOnboarding}>
+              Continue ({ratedCount} movies rated)
+            </Button>
+            <Button variant="link" onClick={finishSwipeOnboarding}>
+              Skip adding more
+            </Button>
+          </div>
+        </div>
       </div>
     );
   }
