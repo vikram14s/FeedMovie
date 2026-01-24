@@ -1,4 +1,4 @@
-import { useEffect, useCallback, useState } from 'react';
+import { useEffect, useCallback, useState, useRef } from 'react';
 import { X, Eye, Check } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { useRecommendations } from '../hooks/useRecommendations';
@@ -6,6 +6,23 @@ import { useUIStore } from '../stores/uiStore';
 import { MovieCard } from '../components/cards/MovieCard';
 import { Spinner } from '../components/ui/Spinner';
 import { Button } from '../components/ui/Button';
+import { recommendationsApi } from '../api/client';
+
+// Helper to check if user is on discover tab
+const isOnDiscoverTab = () => {
+  const { activeTab } = useUIStore.getState();
+  return activeTab === 'discover';
+};
+
+// Generation status type
+interface GenerationStatus {
+  progress: number;
+  stage: string;
+  estimatedSecondsRemaining: number;
+  estimatedTotalSeconds: number;
+  isComplete: boolean;
+  error?: string;
+}
 
 export function DiscoverScreen() {
   const {
@@ -21,8 +38,85 @@ export function DiscoverScreen() {
     generateMore,
   } = useRecommendations();
 
-  const { openRatingModal } = useUIStore();
+  const { openRatingModal, showNotification, setTab } = useUIStore();
   const [isGenerating, setIsGenerating] = useState(false);
+  const [generationStatus, setGenerationStatus] = useState<GenerationStatus | null>(null);
+  const pollIntervalRef = useRef<ReturnType<typeof setInterval> | null>(null);
+
+  // Poll for generation status
+  const pollGenerationStatus = useCallback(async () => {
+    try {
+      const res = await recommendationsApi.getGenerationStatus();
+      if (res.has_job && res.status === 'running') {
+        setGenerationStatus({
+          progress: res.progress,
+          stage: res.stage || 'processing',
+          estimatedSecondsRemaining: res.estimated_seconds_remaining,
+          estimatedTotalSeconds: res.estimated_total_seconds,
+          isComplete: false,
+        });
+      } else if (res.has_job && res.status === 'completed') {
+        setGenerationStatus({
+          progress: 100,
+          stage: 'completed',
+          estimatedSecondsRemaining: 0,
+          estimatedTotalSeconds: res.estimated_total_seconds,
+          isComplete: true,
+        });
+        // Stop polling and reload recommendations
+        if (pollIntervalRef.current) {
+          clearInterval(pollIntervalRef.current);
+          pollIntervalRef.current = null;
+        }
+        setIsGenerating(false);
+        loadRecommendations();
+
+        // Show notification if user is on another tab
+        if (!isOnDiscoverTab()) {
+          showNotification({
+            message: 'Your personalized recommendations are ready!',
+            type: 'success',
+            action: {
+              label: 'View',
+              onClick: () => setTab('discover'),
+            },
+          });
+        }
+      } else if (res.has_job && res.status === 'failed') {
+        setGenerationStatus({
+          progress: 0,
+          stage: 'failed',
+          estimatedSecondsRemaining: 0,
+          estimatedTotalSeconds: res.estimated_total_seconds,
+          isComplete: false,
+          error: res.error_message || 'Generation failed',
+        });
+        if (pollIntervalRef.current) {
+          clearInterval(pollIntervalRef.current);
+          pollIntervalRef.current = null;
+        }
+        setIsGenerating(false);
+      }
+    } catch (error) {
+      console.error('Error polling generation status:', error);
+    }
+  }, [loadRecommendations]);
+
+  // Start polling when generating
+  useEffect(() => {
+    if (isGenerating && !pollIntervalRef.current) {
+      // Poll immediately and then every 2 seconds
+      pollGenerationStatus();
+      pollIntervalRef.current = setInterval(pollGenerationStatus, 2000);
+    }
+
+    return () => {
+      if (pollIntervalRef.current) {
+        clearInterval(pollIntervalRef.current);
+        pollIntervalRef.current = null;
+      }
+    };
+  }, [isGenerating, pollGenerationStatus]);
 
   // Always load recommendations on mount
   useEffect(() => {
@@ -34,7 +128,9 @@ export function DiscoverScreen() {
     if (isEmpty && !isLoading && !isGenerating) {
       // Automatically start generating when there are no recommendations
       setIsGenerating(true);
-      generateMore().finally(() => setIsGenerating(false));
+      generateMore().finally(() => {
+        // Don't set isGenerating to false here - wait for status poll to confirm completion
+      });
     }
   }, [isEmpty, isLoading, isGenerating, generateMore]);
 
@@ -102,17 +198,89 @@ export function DiscoverScreen() {
     );
   }
 
+  // Helper to format stage names
+  const formatStageName = (stage: string) => {
+    const stageNames: Record<string, string> = {
+      starting: 'Starting up...',
+      loading_ratings: 'Analyzing your taste...',
+      ai_recommendations: 'Consulting AI experts...',
+      cf_recommendations: 'Finding similar users...',
+      aggregating: 'Combining results...',
+      enriching_tmdb: 'Fetching movie details...',
+      genre_diversity: 'Ensuring variety...',
+      saving: 'Saving recommendations...',
+      completed: 'Done!',
+      failed: 'Error occurred',
+    };
+    return stageNames[stage] || 'Processing...';
+  };
+
   // Empty state - no recommendations yet (auto-generating)
   if (isEmpty && !hasMore) {
-    // When empty, we auto-generate - show generating state
+    // When empty, we auto-generate - show generating state with progress
     if (isGenerating) {
+      const progress = generationStatus?.progress || 0;
+      const stage = generationStatus?.stage || 'starting';
+      const estimatedRemaining = generationStatus?.estimatedSecondsRemaining || 90;
+
       return (
-        <div className="loading">
-          <Spinner />
-          <p className="loading-text">Consulting our AI movie experts...</p>
-          <p className="loading-subtext" style={{ marginTop: '8px', fontSize: '14px', color: 'var(--text-muted)' }}>
-            This usually takes 30-60 seconds
+        <div className="generating-state" style={{
+          display: 'flex',
+          flexDirection: 'column',
+          alignItems: 'center',
+          justifyContent: 'center',
+          padding: '32px 24px',
+          textAlign: 'center',
+          minHeight: '300px'
+        }}>
+          <div style={{ marginBottom: '24px' }}>
+            <Spinner />
+          </div>
+
+          <h2 style={{ fontSize: '20px', fontWeight: '600', marginBottom: '8px' }}>
+            Creating Your Personalized Picks
+          </h2>
+
+          <p style={{ color: 'var(--text-muted)', marginBottom: '24px', fontSize: '14px' }}>
+            {formatStageName(stage)}
           </p>
+
+          {/* Progress bar */}
+          <div style={{
+            width: '100%',
+            maxWidth: '300px',
+            height: '8px',
+            backgroundColor: 'var(--bg-tertiary)',
+            borderRadius: '4px',
+            overflow: 'hidden',
+            marginBottom: '12px'
+          }}>
+            <div style={{
+              width: `${progress}%`,
+              height: '100%',
+              background: 'linear-gradient(90deg, var(--primary), var(--primary-hover))',
+              borderRadius: '4px',
+              transition: 'width 0.3s ease'
+            }} />
+          </div>
+
+          <p style={{ color: 'var(--text-muted)', fontSize: '13px' }}>
+            {progress}% complete {estimatedRemaining > 0 ? `• ~${Math.ceil(estimatedRemaining / 60)} min remaining` : ''}
+          </p>
+
+          {/* Explore suggestion */}
+          <div style={{
+            marginTop: '32px',
+            padding: '16px',
+            backgroundColor: 'var(--bg-secondary)',
+            borderRadius: '12px',
+            maxWidth: '320px'
+          }}>
+            <p style={{ fontSize: '14px', color: 'var(--text-secondary)' }}>
+              While you wait, explore your <strong>Feed</strong> to see what friends are watching,
+              or check your <strong>Watchlist</strong>!
+            </p>
+          </div>
         </div>
       );
     }

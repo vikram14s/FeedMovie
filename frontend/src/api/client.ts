@@ -77,7 +77,11 @@ export const onboardingApi = {
     }),
 
   complete: () =>
-    apiFetch<{ success: boolean }>('/onboarding/complete', { method: 'POST' }),
+    apiFetch<{
+      success: boolean;
+      job_id?: number;
+      estimated_seconds?: number;
+    }>('/onboarding/complete', { method: 'POST' }),
 };
 
 // Recommendations API
@@ -101,7 +105,26 @@ export const recommendationsApi = {
     }),
 
   generateMore: () =>
-    apiFetch<{ success: boolean }>('/generate-more', { method: 'POST' }),
+    apiFetch<{
+      success: boolean;
+      generating: boolean;
+      job_id?: number;
+      estimated_seconds?: number;
+      message: string;
+    }>('/generate-more', { method: 'POST' }),
+
+  getGenerationStatus: () =>
+    apiFetch<{
+      success: boolean;
+      has_job: boolean;
+      status: 'none' | 'pending' | 'running' | 'completed' | 'failed' | 'cancelled';
+      stage?: string;
+      progress: number;
+      estimated_seconds_remaining: number;
+      estimated_total_seconds: number;
+      is_complete: boolean;
+      error_message?: string;
+    }>('/generation-status'),
 };
 
 // Watchlist API

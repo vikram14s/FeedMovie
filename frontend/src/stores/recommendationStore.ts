@@ -46,7 +46,7 @@ interface RecommendationState {
   swipeRight: () => Promise<void>;
   setSelectedGenres: (genres: string[]) => void;
   setSelectedMoods: (moods: string[]) => void;
-  generateMore: () => Promise<void>;
+  generateMore: () => Promise<{ generating: boolean; job_id?: number; estimated_seconds?: number } | undefined>;
   reset: () => void;
 }
 
@@ -160,38 +160,21 @@ export const useRecommendationStore = create<RecommendationState>((set, get) => 
   },
 
   generateMore: async () => {
-    set({ isLoading: true });
+    // Don't set isLoading here - the UI will use status polling for progress
     try {
-      await recommendationsApi.generateMore();
+      const result = await recommendationsApi.generateMore();
 
-      // Poll for recommendations (AI generation can take 30-60 seconds)
-      const maxAttempts = 20;
-      const pollInterval = 3000; // 3 seconds between polls
-
-      for (let attempt = 0; attempt < maxAttempts; attempt++) {
-        await new Promise((resolve) => setTimeout(resolve, pollInterval));
-
-        // Try to load recommendations
-        const data = await recommendationsApi.get({ limit: 50 });
-
-        if (data.recommendations && data.recommendations.length > 0) {
-          set({
-            recommendations: data.recommendations,
-            totalUnshown: data.total_unshown,
-            currentIndex: 0,
-            isLoading: false,
-          });
-          return; // Success!
-        }
-
-        console.log(`Polling for recommendations... attempt ${attempt + 1}/${maxAttempts}`);
+      // If generation was triggered, return info about the job
+      // The UI will poll for status using the generation-status endpoint
+      if (result.generating) {
+        console.log(`Generation started. Job ID: ${result.job_id}, estimated: ${result.estimated_seconds}s`);
       }
 
-      // After max attempts, just load whatever we have
-      await get().loadRecommendations();
+      // Return the result so the caller can handle it
+      return result;
     } catch (error) {
-      console.error('Error generating recommendations:', error);
-      set({ isLoading: false });
+      console.error('Error triggering recommendation generation:', error);
+      throw error;
     }
   },
 

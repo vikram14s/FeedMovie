@@ -8,13 +8,27 @@ Combines:
 Aggregates results by consensus and weighted scores.
 """
 
-from typing import List, Dict, Any
+from typing import List, Dict, Any, Optional
 from collections import defaultdict
 from database import (get_all_ratings, add_recommendation, clear_recommendations,
-                      get_watched_movie_ids, get_top_recommendations)
+                      get_watched_movie_ids, get_top_recommendations,
+                      create_generation_job, update_generation_job, get_generation_job)
 from ai_ensemble import get_all_ai_recommendations
 from cf_engine import generate_cf_recommendations
 from tmdb_client import search_movie
+
+# Progress stages with their percentage weights
+PROGRESS_STAGES = {
+    'starting': 0,
+    'loading_ratings': 5,
+    'ai_recommendations': 10,      # AI calls start (10-60%)
+    'cf_recommendations': 60,      # CF starts
+    'aggregating': 70,
+    'enriching_tmdb': 75,          # TMDB enrichment (75-90%)
+    'genre_diversity': 90,
+    'saving': 95,
+    'completed': 100
+}
 
 
 def aggregate_recommendations(
@@ -256,8 +270,9 @@ Format as JSON array:
 
 Return only the JSON array."""
 
+            # Use Haiku for genre-fill (faster and cheaper than Opus)
             response = client.messages.create(
-                model="claude-opus-4-5-20251101",
+                model="claude-3-5-haiku-20241022",
                 max_tokens=1500,
                 messages=[{"role": "user", "content": prompt}]
             )
@@ -312,45 +327,71 @@ Return only the JSON array."""
     return enriched
 
 
-def generate_and_save_recommendations(count: int = 15, user_id: int = None):
+def generate_and_save_recommendations(count: int = 15, user_id: int = None, job_id: int = None):
     """
     Main entry point: Generate recommendations from all sources and save to database.
 
     Args:
         count: Number of recommendations to generate
         user_id: User ID to generate recommendations for (None for legacy single-user mode)
+        job_id: Optional job ID for progress tracking
     """
+    def update_progress(stage: str, progress: int = None):
+        """Update job progress if job_id provided."""
+        if job_id:
+            prog = progress if progress is not None else PROGRESS_STAGES.get(stage, 0)
+            update_generation_job(job_id, stage=stage, progress=prog)
+            print(f"   [Progress: {prog}%] {stage}")
+
     print("\n" + "=" * 60)
     print("🎬 FEEDMOVIE RECOMMENDATION ENGINE")
     print("=" * 60)
     if user_id:
         print(f"   Generating for user_id: {user_id}")
 
+    update_progress('starting')
+
+    update_progress('loading_ratings')
+
     # Load user ratings
     ratings = get_all_ratings(user_id=user_id)
     if not ratings:
         print("\n❌ No ratings found in database!")
         print("   Please run: python backend/letterboxd_import.py <csv_file>")
+        if job_id:
+            update_generation_job(job_id, status='failed', error_message='No ratings found')
         return
 
     print(f"\n📊 Loaded {len(ratings)} ratings from Letterboxd")
     print(f"   Average rating: {sum(r['rating'] for r in ratings) / len(ratings):.1f}★")
 
+    update_progress('ai_recommendations')
+
     # Get AI recommendations (80% weight)
     # Each model generates 20 recommendations for diversity
     ai_results = get_all_ai_recommendations(ratings, count_per_model=20)
 
+    update_progress('cf_recommendations')
+
     # Get CF recommendations (20% weight)
     cf_results = generate_cf_recommendations(count=15)
+
+    update_progress('aggregating')
 
     # Aggregate all recommendations
     aggregated = aggregate_recommendations(ai_results, cf_results)
 
+    update_progress('enriching_tmdb')
+
     # Enrich with TMDB data
     enriched = enrich_with_tmdb(aggregated[:count])
 
+    update_progress('genre_diversity')
+
     # Ensure genre diversity: at least 5 movies per major genre
     enriched = ensure_genre_diversity(enriched, ratings, min_per_genre=5)
+
+    update_progress('saving')
 
     # Ensure minimum total recommendations (25)
     MIN_TOTAL = 25
@@ -478,6 +519,11 @@ def generate_and_save_recommendations(count: int = 15, user_id: int = None):
     print(f"\nGenerated {saved_count} recommendations")
     print(f"Next step: python backend/app.py to start the web server")
     print(f"Or query database: sqlite3 data/feedmovie.db")
+
+    # Mark job as completed
+    if job_id:
+        update_generation_job(job_id, status='completed', progress=100)
+        print(f"   [Progress: 100%] completed")
 
 
 if __name__ == '__main__':

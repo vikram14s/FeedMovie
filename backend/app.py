@@ -15,7 +15,9 @@ from database import (
     # Social features
     create_or_update_review, get_user_reviews, get_movie_reviews,
     create_activity, get_friends_activity, get_user_activity,
-    like_activity, unlike_activity, update_user_profile, get_user_stats
+    like_activity, unlike_activity, update_user_profile, get_user_stats,
+    # Generation tracking
+    create_generation_job, update_generation_job, get_generation_job, get_average_generation_time
 )
 from auth import hash_password, verify_password, create_token, require_auth, optional_auth
 from datetime import datetime
@@ -415,17 +417,22 @@ def complete_onboarding(current_user):
         # Mark onboarding complete
         update_user_onboarding(user_id, onboarding_completed=True)
 
+        # Create a generation job for progress tracking
+        job_id = create_generation_job(user_id)
+        avg_time = get_average_generation_time()
+
         # Trigger recommendation generation in background
         import threading
         from recommender import generate_and_save_recommendations
 
         def generate_async():
             try:
-                print(f"Generating initial recommendations for user {user_id}...")
-                generate_and_save_recommendations(count=50, user_id=user_id)
+                print(f"Generating initial recommendations for user {user_id} (job {job_id})...")
+                generate_and_save_recommendations(count=50, user_id=user_id, job_id=job_id)
                 print(f"Initial recommendations generated for user {user_id}")
             except Exception as e:
                 print(f"Error generating recommendations: {e}")
+                update_generation_job(job_id, status='failed', error_message=str(e))
 
         thread = threading.Thread(target=generate_async)
         thread.daemon = True
@@ -433,7 +440,9 @@ def complete_onboarding(current_user):
 
         return jsonify({
             'success': True,
-            'message': 'Onboarding complete! Generating your personalized recommendations...'
+            'message': 'Onboarding complete! Generating your personalized recommendations...',
+            'job_id': job_id,
+            'estimated_seconds': avg_time
         })
 
     except Exception as e:
@@ -653,7 +662,7 @@ def remove_from_watchlist_endpoint(tmdb_id, current_user):
 def generate_more(current_user):
     """
     Generate more recommendations ONLY if running low (<15 unshown movies).
-    Returns immediately with status.
+    Returns immediately with status and job info for progress tracking.
     """
     try:
         import threading
@@ -677,14 +686,20 @@ def generate_more(current_user):
         if unshown_count < 15:
             print("⚠️  Running low on recommendations, generating more...")
 
+            # Create a generation job for progress tracking
+            job_id = create_generation_job(user_id) if user_id else None
+            avg_time = get_average_generation_time()
+
             # Start generation in background thread
             def generate_async():
                 try:
                     print(f"🔄 Starting background recommendation generation for user {user_id}...")
-                    generate_and_save_recommendations(count=50, user_id=user_id)
+                    generate_and_save_recommendations(count=50, user_id=user_id, job_id=job_id)
                     print("✅ Background generation complete!")
                 except Exception as e:
                     print(f"❌ Background generation error: {e}")
+                    if job_id:
+                        update_generation_job(job_id, status='failed', error_message=str(e))
 
             thread = threading.Thread(target=generate_async)
             thread.daemon = True
@@ -693,6 +708,8 @@ def generate_more(current_user):
             return jsonify({
                 'success': True,
                 'generating': True,
+                'job_id': job_id,
+                'estimated_seconds': avg_time,
                 'message': f'Generating more recommendations ({unshown_count} remaining)...'
             })
         else:
@@ -1467,6 +1484,62 @@ def mark_watchlist_seen(tmdb_id, current_user):
 
     except Exception as e:
         print(f"Error marking watchlist seen: {e}")
+        return jsonify({
+            'success': False,
+            'error': str(e)
+        }), 500
+
+
+@app.route('/api/generation-status', methods=['GET'])
+@require_auth
+def get_generation_status(current_user):
+    """
+    Get the current recommendation generation status for a user.
+    Returns progress, estimated time remaining, and completion status.
+    """
+    try:
+        user_id = current_user['user_id']
+        job = get_generation_job(user_id)
+
+        if not job:
+            return jsonify({
+                'success': True,
+                'has_job': False,
+                'status': 'none',
+                'message': 'No generation job found'
+            })
+
+        # Calculate estimated time remaining
+        avg_time = get_average_generation_time()
+        progress = job['progress'] or 0
+        elapsed = None
+
+        if job['started_at']:
+            from datetime import datetime
+            started = datetime.fromisoformat(job['started_at'].replace('Z', '+00:00')) if isinstance(job['started_at'], str) else job['started_at']
+            elapsed = (datetime.now() - started.replace(tzinfo=None)).total_seconds()
+
+        # Estimate remaining time based on progress
+        if progress > 0 and elapsed:
+            estimated_total = elapsed / (progress / 100)
+            estimated_remaining = max(0, estimated_total - elapsed)
+        else:
+            estimated_remaining = avg_time * (1 - progress / 100)
+
+        return jsonify({
+            'success': True,
+            'has_job': True,
+            'status': job['status'],
+            'stage': job['stage'],
+            'progress': progress,
+            'estimated_seconds_remaining': round(estimated_remaining),
+            'estimated_total_seconds': round(avg_time),
+            'is_complete': job['status'] == 'completed',
+            'error_message': job.get('error_message')
+        })
+
+    except Exception as e:
+        print(f"Error getting generation status: {e}")
         return jsonify({
             'success': False,
             'error': str(e)

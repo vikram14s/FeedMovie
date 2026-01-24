@@ -291,6 +291,22 @@ def init_database():
         )
     ''')
 
+    # Generation jobs table: Track recommendation generation progress
+    cursor.execute('''
+        CREATE TABLE IF NOT EXISTS generation_jobs (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            user_id INTEGER NOT NULL,
+            status TEXT NOT NULL DEFAULT 'pending',
+            stage TEXT,
+            progress INTEGER DEFAULT 0,
+            started_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+            completed_at TIMESTAMP,
+            duration_seconds REAL,
+            error_message TEXT,
+            FOREIGN KEY (user_id) REFERENCES users(id)
+        )
+    ''')
+
     # Set default settings
     cursor.execute('''
         INSERT OR IGNORE INTO settings (key, value)
@@ -1363,6 +1379,112 @@ def get_user_library(user_id: int, limit: int = 100) -> List[Dict[str, Any]]:
 
     conn.close()
     return library
+
+
+# ============================================================
+# GENERATION JOBS (Progress tracking)
+# ============================================================
+
+def create_generation_job(user_id: int) -> int:
+    """Create a new generation job. Returns job_id."""
+    conn = get_connection()
+    cursor = conn.cursor()
+
+    # Cancel any existing pending/running jobs for this user
+    cursor.execute('''
+        UPDATE generation_jobs
+        SET status = 'cancelled'
+        WHERE user_id = ? AND status IN ('pending', 'running')
+    ''', (user_id,))
+
+    cursor.execute('''
+        INSERT INTO generation_jobs (user_id, status, stage, progress)
+        VALUES (?, 'running', 'starting', 0)
+    ''', (user_id,))
+
+    job_id = cursor.lastrowid
+    conn.commit()
+    conn.close()
+    return job_id
+
+
+def update_generation_job(job_id: int, stage: str = None, progress: int = None,
+                          status: str = None, error_message: str = None):
+    """Update a generation job's progress."""
+    conn = get_connection()
+    cursor = conn.cursor()
+
+    updates = []
+    params = []
+
+    if stage is not None:
+        updates.append("stage = ?")
+        params.append(stage)
+
+    if progress is not None:
+        updates.append("progress = ?")
+        params.append(progress)
+
+    if status is not None:
+        updates.append("status = ?")
+        params.append(status)
+        if status == 'completed':
+            updates.append("completed_at = CURRENT_TIMESTAMP")
+            updates.append("duration_seconds = (julianday(CURRENT_TIMESTAMP) - julianday(started_at)) * 86400")
+
+    if error_message is not None:
+        updates.append("error_message = ?")
+        params.append(error_message)
+
+    if updates:
+        params.append(job_id)
+        cursor.execute(f'''
+            UPDATE generation_jobs SET {", ".join(updates)} WHERE id = ?
+        ''', params)
+        conn.commit()
+
+    conn.close()
+
+
+def get_generation_job(user_id: int) -> Optional[Dict[str, Any]]:
+    """Get the latest generation job for a user."""
+    conn = get_connection()
+    cursor = conn.cursor()
+
+    cursor.execute('''
+        SELECT * FROM generation_jobs
+        WHERE user_id = ?
+        ORDER BY id DESC
+        LIMIT 1
+    ''', (user_id,))
+
+    row = cursor.fetchone()
+    conn.close()
+
+    if not row:
+        return None
+
+    return dict(row)
+
+
+def get_average_generation_time() -> float:
+    """Get the average generation time in seconds from completed jobs."""
+    conn = get_connection()
+    cursor = conn.cursor()
+
+    cursor.execute('''
+        SELECT AVG(duration_seconds) as avg_duration
+        FROM generation_jobs
+        WHERE status = 'completed' AND duration_seconds IS NOT NULL
+        AND duration_seconds > 10  -- Ignore very fast jobs (likely cached)
+        AND duration_seconds < 600  -- Ignore outliers (> 10 minutes)
+    ''')
+
+    row = cursor.fetchone()
+    conn.close()
+
+    # Default to 90 seconds if no data
+    return row['avg_duration'] if row and row['avg_duration'] else 90.0
 
 
 if __name__ == '__main__':

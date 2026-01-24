@@ -1,11 +1,23 @@
 import { create } from 'zustand';
 import type { Tab, Movie, Recommendation } from '../types';
 
+interface Notification {
+  id: string;
+  message: string;
+  type: 'success' | 'info' | 'error';
+  action?: { label: string; onClick: () => void };
+}
+
 interface UIState {
   // Navigation
   activeTab: Tab;
   setTab: (tab: Tab) => void;
   resetToDiscover: () => void;
+
+  // Notifications
+  notification: Notification | null;
+  showNotification: (notification: Omit<Notification, 'id'>) => void;
+  dismissNotification: () => void;
 
   // Modals
   searchModalOpen: boolean;
@@ -41,6 +53,12 @@ export const useUIStore = create<UIState>((set) => ({
   activeTab: 'discover',
   setTab: (tab) => set({ activeTab: tab }),
   resetToDiscover: () => set({ activeTab: 'discover' }),
+
+  // Notifications
+  notification: null,
+  showNotification: (notification) =>
+    set({ notification: { ...notification, id: Date.now().toString() } }),
+  dismissNotification: () => set({ notification: null }),
 
   // Modals
   searchModalOpen: false,
