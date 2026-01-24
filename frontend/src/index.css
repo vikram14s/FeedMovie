@@ -491,6 +491,8 @@ body {
 .btn-primary {
   display: inline-flex;
   align-items: center;
+  justify-content: center;
+  text-align: center;
   gap: 8px;
   padding: 14px 28px;
   background: var(--teal);
@@ -515,6 +517,8 @@ body {
 .btn-secondary {
   display: inline-flex;
   align-items: center;
+  justify-content: center;
+  text-align: center;
   gap: 8px;
   padding: 14px 28px;
   background: var(--card-bg);
@@ -1122,6 +1126,10 @@ body {
 }
 
 .auth-btn {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  text-align: center;
   width: 100%;
   padding: 14px 24px;
   background: var(--teal);
