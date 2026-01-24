@@ -109,6 +109,12 @@ export const watchlistApi = {
   get: () =>
     apiFetch<{ success: boolean; watchlist: import('../types').WatchlistItem[] }>('/watchlist'),
 
+  add: (tmdb_id: number) =>
+    apiFetch<{ success: boolean }>('/swipe', {
+      method: 'POST',
+      body: JSON.stringify({ tmdb_id, action: 'right' }),
+    }),
+
   remove: (tmdb_id: number) =>
     apiFetch<{ success: boolean }>(`/watchlist/${tmdb_id}`, { method: 'DELETE' }),
 
@@ -188,4 +194,24 @@ export const searchApi = {
     apiFetch<{ success: boolean; results: import('../types').Movie[] }>(
       `/movies/search?q=${encodeURIComponent(query)}`
     ),
+};
+
+// Movies API
+export const moviesApi = {
+  getReviews: (tmdb_id: number) =>
+    apiFetch<{ success: boolean; reviews: import('../types').Review[] }>(
+      `/movies/${tmdb_id}/reviews`
+    ),
+
+  getFriendsWhoWatched: (tmdb_id: number) =>
+    apiFetch<{
+      success: boolean;
+      friends: Array<{
+        id: number;
+        username: string;
+        rating: number;
+        review_text?: string;
+        watched_at: string;
+      }>;
+    }>(`/movies/${tmdb_id}/friends`),
 };

@@ -42,6 +42,15 @@ export function useProfile() {
     }
   }, []);
 
+  const loadFriends = useCallback(async () => {
+    try {
+      const friendsRes = await profileApi.getFriends();
+      setFriends(friendsRes.friends || []);
+    } catch (err) {
+      console.error('Error loading friends:', err);
+    }
+  }, []);
+
   // Load on mount
   useEffect(() => {
     loadProfile();
@@ -54,6 +63,7 @@ export function useProfile() {
     isLoading,
     error,
     loadProfile,
+    loadFriends,
     updateBio,
   };
 }

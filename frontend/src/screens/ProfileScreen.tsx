@@ -1,23 +1,30 @@
 import { useCallback, useState } from 'react';
-import { Edit2, ChevronLeft, ChevronRight } from 'lucide-react';
+import { Edit2, ChevronLeft, ChevronRight, UserPlus } from 'lucide-react';
 import { useProfile } from '../hooks/useProfile';
 import { useAuth } from '../hooks/useAuth';
 import { useUIStore } from '../stores/uiStore';
 import { Spinner } from '../components/ui/Spinner';
 import { Button } from '../components/ui/Button';
 import { formatTimeAgo } from '../utils/time';
+import type { Movie } from '../types';
 
 const ITEMS_PER_PAGE = 16;
 
 export function ProfileScreen() {
-  const { profile, library, friends, isLoading } = useProfile();
+  const { profile, library, friends, isLoading, loadFriends } = useProfile();
   const { user, logout } = useAuth();
-  const { openEditBioModal } = useUIStore();
+  const { openEditBioModal, openAddFriendsModal, openMovieDetailModal } = useUIStore();
   const [libraryPage, setLibraryPage] = useState(0);
 
   const handleLogout = useCallback(() => {
     logout();
   }, [logout]);
+
+  const handleMovieClick = useCallback((item: { tmdb_id: number; rating: number; movie?: Movie }) => {
+    if (item.movie) {
+      openMovieDetailModal(item.movie);
+    }
+  }, [openMovieDetailModal]);
 
   const totalPages = Math.ceil(library.length / ITEMS_PER_PAGE);
   const paginatedLibrary = library.slice(
@@ -91,7 +98,18 @@ export function ProfileScreen() {
 
       {/* Friends Section */}
       <div className="profile-section">
-        <div className="profile-section-title">Friends</div>
+        <div className="profile-section-header">
+          <div className="profile-section-title">Friends</div>
+          <button
+            onClick={openAddFriendsModal}
+            className="pagination-btn"
+            title="Find Friends"
+            style={{ gap: '4px', width: 'auto', padding: '6px 12px', display: 'flex', alignItems: 'center' }}
+          >
+            <UserPlus size={16} />
+            <span style={{ fontSize: '12px', fontWeight: 500 }}>Add</span>
+          </button>
+        </div>
         {friends.length > 0 ? (
           <div className="friends-list">
             {friends.map((friend) => {
@@ -110,9 +128,14 @@ export function ProfileScreen() {
             })}
           </div>
         ) : (
-          <p style={{ textAlign: 'center', color: 'var(--text-muted)', padding: '20px' }}>
-            No friends added yet
-          </p>
+          <div style={{ textAlign: 'center', padding: '20px' }}>
+            <p style={{ color: 'var(--text-muted)', marginBottom: '12px' }}>
+              No friends added yet
+            </p>
+            <Button variant="primary" onClick={openAddFriendsModal}>
+              <UserPlus size={18} /> Find Friends
+            </Button>
+          </div>
         )}
       </div>
 
@@ -151,7 +174,11 @@ export function ProfileScreen() {
               const posterUrl = movie?.poster_path || 'https://via.placeholder.com/80x120?text=?';
 
               return (
-                <div key={item.tmdb_id} className="library-item">
+                <div
+                  key={item.tmdb_id}
+                  className="library-item clickable"
+                  onClick={() => handleMovieClick(item)}
+                >
                   <img
                     src={posterUrl}
                     alt={movie?.title || 'Unknown'}
@@ -183,7 +210,11 @@ export function ProfileScreen() {
                 '☆'.repeat(5 - Math.floor(activity.rating || 0));
 
               return (
-                <div key={index} className="profile-activity-item">
+                <div
+                  key={index}
+                  className="profile-activity-item clickable"
+                  onClick={() => movie && openMovieDetailModal(movie as Movie)}
+                >
                   <img src={posterUrl} alt={movie?.title || 'Unknown'} className="profile-activity-poster" />
                   <div className="profile-activity-info">
                     <div className="profile-activity-title">{movie?.title || 'Unknown'}</div>

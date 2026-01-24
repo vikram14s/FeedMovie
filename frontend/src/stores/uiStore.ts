@@ -13,6 +13,9 @@ interface UIState {
   ratingModal: { open: boolean; movie: Movie | null };
   markSeenModal: { open: boolean; movie: Movie | null };
   editBioModalOpen: boolean;
+  addFriendsModalOpen: boolean;
+  movieDetailModal: { open: boolean; movie: Movie | Recommendation | null };
+  userProfileModal: { open: boolean; userId: number | null; username: string | null };
 
   // Modal controls
   openSearchModal: () => void;
@@ -25,6 +28,12 @@ interface UIState {
   closeMarkSeenModal: () => void;
   openEditBioModal: () => void;
   closeEditBioModal: () => void;
+  openAddFriendsModal: () => void;
+  closeAddFriendsModal: () => void;
+  openMovieDetailModal: (movie: Movie | Recommendation) => void;
+  closeMovieDetailModal: () => void;
+  openUserProfileModal: (userId: number, username: string) => void;
+  closeUserProfileModal: () => void;
 }
 
 export const useUIStore = create<UIState>((set) => ({
@@ -39,6 +48,9 @@ export const useUIStore = create<UIState>((set) => ({
   ratingModal: { open: false, movie: null },
   markSeenModal: { open: false, movie: null },
   editBioModalOpen: false,
+  addFriendsModalOpen: false,
+  movieDetailModal: { open: false, movie: null },
+  userProfileModal: { open: false, userId: null, username: null },
 
   // Modal controls
   openSearchModal: () => set({ searchModalOpen: true }),
@@ -51,4 +63,10 @@ export const useUIStore = create<UIState>((set) => ({
   closeMarkSeenModal: () => set({ markSeenModal: { open: false, movie: null } }),
   openEditBioModal: () => set({ editBioModalOpen: true }),
   closeEditBioModal: () => set({ editBioModalOpen: false }),
+  openAddFriendsModal: () => set({ addFriendsModalOpen: true }),
+  closeAddFriendsModal: () => set({ addFriendsModalOpen: false }),
+  openMovieDetailModal: (movie) => set({ movieDetailModal: { open: true, movie } }),
+  closeMovieDetailModal: () => set({ movieDetailModal: { open: false, movie: null } }),
+  openUserProfileModal: (userId, username) => set({ userProfileModal: { open: true, userId, username } }),
+  closeUserProfileModal: () => set({ userProfileModal: { open: false, userId: null, username: null } }),
 }));

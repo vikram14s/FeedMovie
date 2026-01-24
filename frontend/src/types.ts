@@ -94,6 +94,25 @@ export interface Friend {
   compatibility_score?: number;
 }
 
+export interface Review {
+  id: number;
+  user: {
+    id: number;
+    username: string;
+  };
+  rating: number;
+  review_text?: string;
+  created_at: string;
+}
+
+export interface FriendWatched {
+  id: number;
+  username: string;
+  rating: number;
+  review_text?: string;
+  watched_at: string;
+}
+
 export type Tab = 'discover' | 'feed' | 'watchlist' | 'profile';
 
 export interface MoodPreset {

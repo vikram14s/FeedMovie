@@ -4,6 +4,7 @@ import { useUIStore } from './stores/uiStore';
 import { useWatchlist } from './hooks/useWatchlist';
 import { useRecommendations } from './hooks/useRecommendations';
 import { useProfile } from './hooks/useProfile';
+import { useFeed } from './hooks/useFeed';
 import { ratingsApi } from './api/client';
 
 // Layout
@@ -30,6 +31,15 @@ const RatingModal = lazy(() =>
 const EditBioModal = lazy(() =>
   import('./components/modals/EditBioModal').then((m) => ({ default: m.EditBioModal }))
 );
+const MovieDetailModal = lazy(() =>
+  import('./components/modals/MovieDetailModal').then((m) => ({ default: m.MovieDetailModal }))
+);
+const UserProfileModal = lazy(() =>
+  import('./components/modals/UserProfileModal').then((m) => ({ default: m.UserProfileModal }))
+);
+const AddFriendsModal = lazy(() =>
+  import('./components/modals/AddFriendsModal').then((m) => ({ default: m.AddFriendsModal }))
+);
 
 import { Spinner } from './components/ui/Spinner';
 
@@ -42,15 +52,23 @@ function App() {
     ratingModal,
     markSeenModal,
     editBioModalOpen,
+    addFriendsModalOpen,
+    movieDetailModal,
+    userProfileModal,
     closeSearchModal,
     closeFiltersModal,
     closeRatingModal,
     closeMarkSeenModal,
     closeEditBioModal,
+    closeAddFriendsModal,
+    closeMovieDetailModal,
+    closeUserProfileModal,
     openRatingModal,
+    openMovieDetailModal,
+    openUserProfileModal,
   } = useUIStore();
 
-  const { watchlistCount, loadWatchlist, markAsSeen } = useWatchlist();
+  const { watchlistCount, loadWatchlist, markAsSeen, addToWatchlist } = useWatchlist();
   const {
     selectedGenres,
     selectedMoods,
@@ -60,6 +78,7 @@ function App() {
     swipeLeft,
   } = useRecommendations();
   const { profile, updateBio } = useProfile();
+  const { loadFeed } = useFeed();
 
   const [initialCheckDone, setInitialCheckDone] = useState(false);
 
@@ -134,6 +153,32 @@ function App() {
       return updateBio(bio);
     },
     [updateBio]
+  );
+
+  // Handle add to watchlist from movie detail modal
+  const handleAddToWatchlistFromDetail = useCallback(
+    async (movie: import('./types').Movie) => {
+      await addToWatchlist(movie.tmdb_id);
+      loadWatchlist();
+    },
+    [addToWatchlist, loadWatchlist]
+  );
+
+  // Handle friend added - reload feed
+  const handleFriendAdded = useCallback(() => {
+    loadFeed();
+  }, [loadFeed]);
+
+  // Handle view movie from user profile modal
+  const handleViewMovieFromProfile = useCallback(
+    (tmdbId: number) => {
+      // Close user profile modal and open movie detail
+      // We'd need to fetch the movie details first
+      closeUserProfileModal();
+      // For now, we'll just log it - the movie detail modal requires a full movie object
+      console.log('View movie:', tmdbId);
+    },
+    [closeUserProfileModal]
   );
 
   // Show loading spinner during initial auth check
@@ -218,6 +263,37 @@ function App() {
             currentBio={profile?.bio || ''}
             onClose={closeEditBioModal}
             onSave={handleBioUpdate}
+          />
+        ) : null}
+
+        {movieDetailModal.open ? (
+          <MovieDetailModal
+            isOpen={movieDetailModal.open}
+            movie={movieDetailModal.movie}
+            onClose={closeMovieDetailModal}
+            onAddToWatchlist={handleAddToWatchlistFromDetail}
+            onUserClick={(userId, username) => {
+              closeMovieDetailModal();
+              openUserProfileModal(userId, username);
+            }}
+          />
+        ) : null}
+
+        {userProfileModal.open ? (
+          <UserProfileModal
+            isOpen={userProfileModal.open}
+            userId={userProfileModal.userId}
+            username={userProfileModal.username}
+            onClose={closeUserProfileModal}
+            onViewMovie={handleViewMovieFromProfile}
+          />
+        ) : null}
+
+        {addFriendsModalOpen ? (
+          <AddFriendsModal
+            isOpen={addFriendsModalOpen}
+            onClose={closeAddFriendsModal}
+            onFriendAdded={handleFriendAdded}
           />
         ) : null}
       </Suspense>
