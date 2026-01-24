@@ -64,7 +64,6 @@ function App() {
     closeMovieDetailModal,
     closeUserProfileModal,
     openRatingModal,
-    openMovieDetailModal,
     openUserProfileModal,
   } = useUIStore();
 
@@ -98,6 +97,15 @@ function App() {
       openRatingModal(movie as import('./types').Recommendation);
     },
     [closeSearchModal, openRatingModal]
+  );
+
+  // Handle user selection from search
+  const handleSearchSelectUser = useCallback(
+    (userId: number, username: string) => {
+      closeSearchModal();
+      openUserProfileModal(userId, username);
+    },
+    [closeSearchModal, openUserProfileModal]
   );
 
   // Handle rating submission from discover screen (already seen)
@@ -224,6 +232,7 @@ function App() {
             isOpen={searchModalOpen}
             onClose={closeSearchModal}
             onSelectMovie={handleSearchSelectMovie}
+            onSelectUser={handleSearchSelectUser}
           />
         ) : null}
 

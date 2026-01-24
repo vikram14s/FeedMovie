@@ -215,3 +215,42 @@ export const moviesApi = {
       }>;
     }>(`/movies/${tmdb_id}/friends`),
 };
+
+// Users API
+export const usersApi = {
+  search: (query: string) =>
+    apiFetch<{
+      success: boolean;
+      users: Array<{
+        id: number;
+        username: string;
+        bio?: string;
+        ratings_count: number;
+      }>;
+    }>(`/users/search?q=${encodeURIComponent(query)}`),
+
+  getProfile: (userId: number) =>
+    apiFetch<{
+      success: boolean;
+      user: {
+        id: number;
+        username: string;
+        bio?: string;
+        ratings_count: number;
+        recent_activity: Array<{
+          tmdb_id: number;
+          title: string;
+          poster_path?: string;
+          rating: number;
+          review_text?: string;
+          created_at: string;
+        }>;
+      };
+    }>(`/users/${userId}/profile`),
+
+  addFriend: (userId: number) =>
+    apiFetch<{ success: boolean; friend_id: number }>('/friends/add', {
+      method: 'POST',
+      body: JSON.stringify({ user_id: userId }),
+    }),
+};

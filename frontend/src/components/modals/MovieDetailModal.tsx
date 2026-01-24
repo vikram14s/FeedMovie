@@ -26,7 +26,6 @@ export function MovieDetailModal({
   const [reviews, setReviews] = useState<Review[]>([]);
   const [friendsWatched, setFriendsWatched] = useState<FriendWatched[]>([]);
   const [isLoadingReviews, setIsLoadingReviews] = useState(false);
-  const [isLoadingFriends, setIsLoadingFriends] = useState(false);
   const [showReviewForm, setShowReviewForm] = useState(false);
   const [userRating, setUserRating] = useState(0);
   const [reviewText, setReviewText] = useState('');
@@ -106,14 +105,11 @@ export function MovieDetailModal({
 
   const loadFriendsWatched = async () => {
     if (!movie) return;
-    setIsLoadingFriends(true);
     try {
       const data = await moviesApi.getFriendsWhoWatched(movie.tmdb_id);
       setFriendsWatched(data.friends || []);
     } catch (err) {
       console.error('Error loading friends who watched:', err);
-    } finally {
-      setIsLoadingFriends(false);
     }
   };
 
@@ -259,7 +255,7 @@ export function MovieDetailModal({
           {'reasoning' in displayMovie && displayMovie.reasoning ? (
             <div className="movie-detail-reasoning">
               <p className="reasoning-label">Why you might like it:</p>
-              <p className="reasoning-text">"{displayMovie.reasoning}"</p>
+              <p className="reasoning-text">"{String(displayMovie.reasoning)}"</p>
             </div>
           ) : null}
 

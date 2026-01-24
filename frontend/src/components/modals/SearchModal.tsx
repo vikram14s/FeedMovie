@@ -1,18 +1,28 @@
 import { useState, useCallback, useRef, useEffect } from 'react';
-import { X } from 'lucide-react';
-import { searchApi } from '../../api/client';
+import { X, Film, Users } from 'lucide-react';
+import { searchApi, usersApi } from '../../api/client';
 import type { Movie } from '../../types';
 import { Spinner } from '../ui/Spinner';
+
+interface UserResult {
+  id: number;
+  username: string;
+  bio?: string;
+  ratings_count: number;
+}
 
 interface SearchModalProps {
   isOpen: boolean;
   onClose: () => void;
   onSelectMovie: (movie: Movie) => void;
+  onSelectUser?: (userId: number, username: string) => void;
 }
 
-export function SearchModal({ isOpen, onClose, onSelectMovie }: SearchModalProps) {
+export function SearchModal({ isOpen, onClose, onSelectMovie, onSelectUser }: SearchModalProps) {
+  const [activeTab, setActiveTab] = useState<'movies' | 'users'>('movies');
   const [query, setQuery] = useState('');
-  const [results, setResults] = useState<Movie[]>([]);
+  const [movieResults, setMovieResults] = useState<Movie[]>([]);
+  const [userResults, setUserResults] = useState<UserResult[]>([]);
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const inputRef = useRef<HTMLInputElement>(null);
@@ -38,7 +48,7 @@ export function SearchModal({ isOpen, onClose, onSelectMovie }: SearchModalProps
 
   const searchMovies = useCallback(async (searchQuery: string) => {
     if (searchQuery.length < 2) {
-      setResults([]);
+      setMovieResults([]);
       return;
     }
 
@@ -47,7 +57,27 @@ export function SearchModal({ isOpen, onClose, onSelectMovie }: SearchModalProps
 
     try {
       const data = await searchApi.movies(searchQuery);
-      setResults(data.results || []);
+      setMovieResults(data.results || []);
+    } catch (err) {
+      setError('Error searching. Try again.');
+      console.error('Search error:', err);
+    } finally {
+      setIsLoading(false);
+    }
+  }, []);
+
+  const searchUsers = useCallback(async (searchQuery: string) => {
+    if (searchQuery.length < 2) {
+      setUserResults([]);
+      return;
+    }
+
+    setIsLoading(true);
+    setError(null);
+
+    try {
+      const data = await usersApi.search(searchQuery);
+      setUserResults(data.users || []);
     } catch (err) {
       setError('Error searching. Try again.');
       console.error('Search error:', err);
@@ -67,28 +97,64 @@ export function SearchModal({ isOpen, onClose, onSelectMovie }: SearchModalProps
       }
 
       if (value.length < 2) {
-        setResults([]);
+        setMovieResults([]);
+        setUserResults([]);
         return;
       }
 
       setIsLoading(true);
       searchTimeout.current = setTimeout(() => {
-        searchMovies(value);
+        if (activeTab === 'movies') {
+          searchMovies(value);
+        } else {
+          searchUsers(value);
+        }
       }, 300);
     },
-    [searchMovies]
+    [activeTab, searchMovies, searchUsers]
   );
+
+  // Re-search when tab changes
+  const handleTabChange = useCallback((tab: 'movies' | 'users') => {
+    setActiveTab(tab);
+    setError(null);
+    if (query.length >= 2) {
+      setIsLoading(true);
+      if (tab === 'movies') {
+        searchMovies(query);
+      } else {
+        searchUsers(query);
+      }
+    }
+  }, [query, searchMovies, searchUsers]);
 
   const handleSelectMovie = useCallback(
     (movie: Movie) => {
       onSelectMovie(movie);
       setQuery('');
-      setResults([]);
+      setMovieResults([]);
+      setUserResults([]);
     },
     [onSelectMovie]
   );
 
+  const handleSelectUser = useCallback(
+    (user: UserResult) => {
+      if (onSelectUser) {
+        onSelectUser(user.id, user.username);
+        setQuery('');
+        setMovieResults([]);
+        setUserResults([]);
+      }
+    },
+    [onSelectUser]
+  );
+
   if (!isOpen) return null;
+
+  const placeholder = activeTab === 'movies' ? 'Search for movies...' : 'Search for users...';
+  const emptyMessage = activeTab === 'movies' ? 'No movies found' : 'No users found';
+  const defaultMessage = activeTab === 'movies' ? 'Start typing to search for movies' : 'Start typing to search for users';
 
   return (
     <div className="search-modal" onClick={onClose}>
@@ -98,12 +164,30 @@ export function SearchModal({ isOpen, onClose, onSelectMovie }: SearchModalProps
             ref={inputRef}
             type="text"
             className="search-input"
-            placeholder="Search for a movie..."
+            placeholder={placeholder}
             value={query}
             onChange={handleInputChange}
           />
           <button onClick={onClose} className="search-close-btn" aria-label="Close">
             <X size={24} />
+          </button>
+        </div>
+
+        {/* Search Tabs */}
+        <div className="search-tabs">
+          <button
+            className={`search-tab ${activeTab === 'movies' ? 'active' : ''}`}
+            onClick={() => handleTabChange('movies')}
+          >
+            <Film size={16} />
+            <span>Movies</span>
+          </button>
+          <button
+            className={`search-tab ${activeTab === 'users' ? 'active' : ''}`}
+            onClick={() => handleTabChange('users')}
+          >
+            <Users size={16} />
+            <span>Users</span>
           </button>
         </div>
 
@@ -115,8 +199,8 @@ export function SearchModal({ isOpen, onClose, onSelectMovie }: SearchModalProps
             </div>
           ) : error ? (
             <div className="search-empty">{error}</div>
-          ) : results.length > 0 ? (
-            results.map((movie) => (
+          ) : activeTab === 'movies' && movieResults.length > 0 ? (
+            movieResults.map((movie) => (
               <div
                 key={movie.tmdb_id}
                 className="search-result-item"
@@ -133,12 +217,30 @@ export function SearchModal({ isOpen, onClose, onSelectMovie }: SearchModalProps
                 </div>
               </div>
             ))
+          ) : activeTab === 'users' && userResults.length > 0 ? (
+            userResults.map((user) => (
+              <div
+                key={user.id}
+                className="search-result-item"
+                onClick={() => handleSelectUser(user)}
+              >
+                <div className="search-result-avatar">
+                  {user.username.charAt(0).toUpperCase()}
+                </div>
+                <div className="search-result-info">
+                  <div className="search-result-title">{user.username}</div>
+                  <div className="search-result-meta">
+                    {user.ratings_count} {user.ratings_count === 1 ? 'rating' : 'ratings'}
+                  </div>
+                </div>
+              </div>
+            ))
           ) : query.length > 0 && query.length < 2 ? (
             <div className="search-empty">Keep typing to search...</div>
           ) : query.length >= 2 ? (
-            <div className="search-empty">No movies found</div>
+            <div className="search-empty">{emptyMessage}</div>
           ) : (
-            <div className="search-empty">Start typing to search for movies</div>
+            <div className="search-empty">{defaultMessage}</div>
           )}
         </div>
       </div>

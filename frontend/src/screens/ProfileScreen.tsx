@@ -11,7 +11,7 @@ import type { Movie } from '../types';
 const ITEMS_PER_PAGE = 16;
 
 export function ProfileScreen() {
-  const { profile, library, friends, isLoading, loadFriends } = useProfile();
+  const { profile, library, friends, isLoading } = useProfile();
   const { user, logout } = useAuth();
   const { openEditBioModal, openAddFriendsModal, openMovieDetailModal } = useUIStore();
   const [libraryPage, setLibraryPage] = useState(0);
