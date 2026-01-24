@@ -6,6 +6,7 @@ import { Button } from '../components/ui/Button';
 import { StarRating } from '../components/ui/StarRating';
 import { Spinner } from '../components/ui/Spinner';
 import { moodPresets, useRecommendationStore } from '../stores/recommendationStore';
+import { useUIStore } from '../stores/uiStore';
 
 type OnboardingStep = 'path' | 'letterboxd' | 'swipe' | 'profiles' | 'curators' | 'genres';
 
@@ -110,6 +111,7 @@ const tasteProfiles = [
 export function OnboardingScreen() {
   const { user, setUser } = useAuth();
   const { setSelectedGenres, setSelectedMoods } = useRecommendationStore();
+  const { resetToDiscover } = useUIStore();
 
   const [step, setStep] = useState<OnboardingStep>('path');
   const [isLoading, setIsLoading] = useState(false);
@@ -319,7 +321,46 @@ export function OnboardingScreen() {
     setLoadingText('Generating your personalized recommendations...');
 
     try {
+      // Trigger recommendation generation
       await onboardingApi.complete();
+
+      // Poll for recommendations (AI generation can take 30-60 seconds)
+      const maxAttempts = 20;
+      const pollInterval = 3000;
+      const loadingMessages = [
+        'Analyzing your taste profile...',
+        'Consulting our AI movie experts...',
+        'Finding hidden gems just for you...',
+        'Almost there...',
+      ];
+
+      for (let attempt = 0; attempt < maxAttempts; attempt++) {
+        // Update loading message for better feedback
+        const msgIndex = Math.min(Math.floor(attempt / 5), loadingMessages.length - 1);
+        setLoadingText(loadingMessages[msgIndex]);
+
+        await new Promise((resolve) => setTimeout(resolve, pollInterval));
+
+        // Check if recommendations are ready
+        try {
+          const { recommendationsApi } = await import('../api/client');
+          const data = await recommendationsApi.get({ limit: 5 });
+
+          if (data.recommendations && data.recommendations.length > 0) {
+            // Recommendations ready! Complete onboarding
+            resetToDiscover();
+            if (user) {
+              setUser({ ...user, onboarding_completed: true, onboarding_type: type });
+            }
+            return;
+          }
+        } catch {
+          // Continue polling
+        }
+      }
+
+      // Timeout - complete anyway and let user manually generate
+      resetToDiscover();
       if (user) {
         setUser({ ...user, onboarding_completed: true, onboarding_type: type });
       }
