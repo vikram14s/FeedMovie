@@ -1,0 +1,15 @@
+[build]
+builder = "nixpacks"
+
+[build.nixpacks]
+providers = ["python", "node"]
+
+[deploy]
+startCommand = "cd frontend && npm run build && cd .. && python backend/app.py"
+healthcheckPath = "/api/health"
+healthcheckTimeout = 300
+restartPolicyType = "on_failure"
+restartPolicyMaxRetries = 3
+
+[variables]
+PORT = "5000"

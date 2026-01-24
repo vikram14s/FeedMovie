@@ -1676,20 +1676,34 @@ def health():
 def index():
     """Serve the frontend."""
     from flask import send_from_directory
-    return send_from_directory('../frontend', 'index.html')
+    import os
+    # Serve from dist/ for production build, fallback to frontend/ for dev
+    frontend_path = '../frontend/dist' if os.path.exists('../frontend/dist/index.html') else '../frontend'
+    return send_from_directory(frontend_path, 'index.html')
 
 
 @app.route('/<path:path>')
 def serve_static(path):
-    """Serve static files."""
+    """Serve static files with SPA fallback."""
     from flask import send_from_directory
-    return send_from_directory('../frontend', path)
+    import os
+    # Serve from dist/ for production build, fallback to frontend/ for dev
+    frontend_path = '../frontend/dist' if os.path.exists('../frontend/dist/index.html') else '../frontend'
+    file_path = os.path.join(frontend_path, path)
+
+    # If file exists, serve it; otherwise return index.html for SPA routing
+    if os.path.exists(file_path) and os.path.isfile(file_path):
+        return send_from_directory(frontend_path, path)
+    return send_from_directory(frontend_path, 'index.html')
 
 
 if __name__ == '__main__':
+    import os
+    port = int(os.environ.get('PORT', 5000))
+
     print("\n🎬 Starting FeedMovie API server...")
-    print("🌐 Frontend: http://localhost:5000")
-    print("📡 API: http://localhost:5000/api/recommendations")
+    print(f"🌐 Frontend: http://localhost:{port}")
+    print(f"📡 API: http://localhost:{port}/api/recommendations")
     print("\n✨ Happy movie hunting!\n")
 
-    app.run(debug=True, host='0.0.0.0', port=5000)
+    app.run(debug=True, host='0.0.0.0', port=port)
