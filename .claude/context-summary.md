@@ -1,12 +1,68 @@
 # FeedMovie Context Summary
 
-*Last updated: 2026-01-23*
+*Last updated: 2026-01-24*
 
 ## Project Overview
 
 FeedMovie is a multi-user movie recommendation platform with a Tinder-style swipe interface. It uses AI models (Claude, Gemini) combined with collaborative filtering to provide personalized recommendations based on Letterboxd rating history.
 
-## Recent Session Summary (Jan 23, 2026)
+## Recent Session Summary (Jan 24, 2026)
+
+### React Frontend - Social Features Completed
+
+Merged `react-rewrite` branch into `main` with full social features:
+
+#### New Modals
+- **MovieDetailModal**: Shows movie details, "Friends who watched" section, reviews, add to watchlist
+- **UserProfileModal**: View other users' profiles, their library, recent activity
+- **AddFriendsModal**: Search and add friends by username
+
+#### User Search
+- **SearchModal** now has tabs: "Movies" and "Users"
+- Search for users by username, click to view their profile
+- Integrated with UserProfileModal
+
+#### Clickable Items
+- Library movies in ProfileScreen are clickable → opens MovieDetailModal
+- Activity items in ProfileScreen are clickable → opens user profile
+- Feed items show user avatars, clickable to view profiles
+
+#### API Additions (backend/app.py)
+- `GET /api/users/search?q=` - Search users by username
+- `GET /api/users/<id>/profile` - Get user profile with activity
+- `GET /api/movies/<tmdb_id>/friends` - Get friends who watched a movie
+- `GET /api/movies/<tmdb_id>/reviews` - Get reviews for a movie
+- `POST /api/friends/add` - Add friend by user ID
+
+### Railway Deployment Configuration
+
+Added deployment files for Railway:
+- `railway.toml` - Nixpacks build config (Python + Node)
+- `.env.example` - Documents required environment variables
+- Updated `backend/app.py`:
+  - Uses `PORT` env var (default 5000)
+  - Serves from `frontend/dist/` for production builds
+  - SPA routing fallback (returns index.html for unknown routes)
+- Updated `backend/database.py`:
+  - Auto-creates `data/` directory if missing
+
+**To deploy on Railway:**
+1. Go to railway.app → New Project → Deploy from GitHub
+2. Select FeedMovie repo
+3. Add env vars: `TMDB_API_KEY`, `ANTHROPIC_API_KEY`, `GOOGLE_API_KEY`, `JWT_SECRET`
+4. Optional: Add Volume at `/app/data` to persist SQLite database
+
+### MCP Servers Added
+- Vercel: `claude mcp add --transport http vercel https://mcp.vercel.com`
+- Railway: `claude mcp add Railway npx @railway/mcp-server`
+
+### Git Status
+- All React work merged from `react-rewrite` → `main`
+- All changes pushed to GitHub
+
+---
+
+## Previous Session (Jan 23, 2026)
 
 ### Bug Fixes
 
