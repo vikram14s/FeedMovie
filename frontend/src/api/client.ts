@@ -147,6 +147,12 @@ export const profileApi = {
 
   getFriends: () =>
     apiFetch<{ success: boolean; friends: import('../types').Friend[] }>('/profile/friends'),
+
+  addFriend: (name: string) =>
+    apiFetch<{ success: boolean; friend_id: number }>('/profile/friends', {
+      method: 'POST',
+      body: JSON.stringify({ name }),
+    }),
 };
 
 // Taste Profiles API
