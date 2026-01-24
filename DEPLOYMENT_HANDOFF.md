@@ -1,59 +1,46 @@
 # FeedMovie Deployment Handoff
 
 **Date**: 2026-01-24
-**Goal**: Deploy FeedMovie for 5-6 beta testers
+**Goal**: Connect Vercel frontend to Railway backend
 
 ---
 
-## Prerequisites Done
+## Current State
 
-- [x] Railway config merged (`railway.toml`, `.env.example`)
-- [x] Frontend builds to `frontend/dist/`
-- [x] Backend serves from dist with SPA routing
+- [x] Railway backend is **deployed and online**
 - [x] MCP servers installed: Vercel, Railway
+- [ ] Connect Vercel for frontend
 
 ---
 
-## TODO: Deploy to Railway
+## TODO: Connect Vercel Frontend
 
-### 1. Authenticate with Railway MCP
-```
-Use the Railway MCP server to authenticate and connect to Railway
-```
+### 1. Use Vercel MCP Server
+Authenticate and connect to Vercel via the MCP server.
 
-### 2. Create New Project
-- Create a new Railway project called "feedmovie"
-- Connect to GitHub repo: `vikram14s/FeedMovie`
+### 2. Create Vercel Project
+- Import from GitHub: `vikram14s/FeedMovie`
 - Branch: `main`
+- Framework: Vite
+- Root directory: `frontend`
+- Build command: `npm run build`
+- Output directory: `dist`
 
-### 3. Set Environment Variables
-Add these in Railway dashboard or via MCP:
+### 3. Set Environment Variable
 ```
-ANTHROPIC_API_KEY=<from local .env>
-GOOGLE_API_KEY=<from local .env>
-TMDB_API_KEY=<from local .env>
-JWT_SECRET=<generate with: openssl rand -hex 32>
+VITE_API_URL=<Railway backend URL>/api
 ```
+Example: `https://feedmovie-production.up.railway.app/api`
 
-Optional:
-```
-OPENAI_API_KEY=<if available>
-```
+### 4. Deploy
+- Deploy the frontend to Vercel
+- Get the Vercel URL
 
-### 4. Add Persistent Volume
-- Mount path: `/app/data`
-- This persists the SQLite database between deploys
-
-### 5. Deploy & Get URL
-- Trigger deploy from main branch
-- Get the public URL (e.g., `feedmovie-production.up.railway.app`)
-
-### 6. Test the Deployment
-- [ ] Visit the URL, see login screen
-- [ ] Register a new account
-- [ ] Complete onboarding (Letterboxd or swipe)
-- [ ] Get recommendations
-- [ ] Test social features (search users, view profiles)
+### 5. Test
+- [ ] Visit Vercel URL
+- [ ] Confirm it connects to Railway backend
+- [ ] Test login/register
+- [ ] Test recommendations
 
 ---
 
@@ -61,37 +48,23 @@ OPENAI_API_KEY=<if available>
 
 **Project location**: `/Users/adi/Documents/FeedMovie`
 
-**Tech stack**:
-- Backend: Python/Flask (`backend/app.py`)
-- Frontend: React/Vite (`frontend/`) - builds to `frontend/dist/`
-- Database: SQLite at `data/feedmovie.db`
-
-**Key files**:
-- `railway.toml` - Railway build config
-- `.env.example` - Required environment variables
-- `backend/app.py` - Uses PORT env var, serves frontend
+**Architecture**:
+- **Backend (Railway)**: Python/Flask API - ALREADY DEPLOYED
+- **Frontend (Vercel)**: React/Vite at `frontend/`
 
 **MCP servers available**:
-- `vercel` - Vercel deployment (HTTP transport)
+- `vercel` - Vercel deployment (HTTP transport at https://mcp.vercel.com)
 - `Railway` - Railway deployment (npx @railway/mcp-server)
 
 **GitHub**: https://github.com/vikram14s/FeedMovie (main branch)
 
----
-
-## After Deployment
-
-Share with testers:
-1. The Railway URL
-2. Instructions to register an account
-3. Optional: Their Letterboxd username for import
+**Frontend build**:
+- Directory: `frontend/`
+- Build: `npm run build`
+- Output: `frontend/dist/`
 
 ---
 
-## Rollback
+## Notes
 
-If something goes wrong:
-```bash
-# Railway dashboard: Deployments > select previous > Redeploy
-# Or via CLI/MCP: rollback to previous deployment
-```
+The frontend uses `VITE_API_URL` environment variable to know where the backend is. If not set, it defaults to `/api` (same origin). For Vercel + Railway split, it needs the full Railway URL.
