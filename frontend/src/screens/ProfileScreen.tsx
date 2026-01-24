@@ -4,6 +4,7 @@ import { useProfile } from '../hooks/useProfile';
 import { useAuth } from '../hooks/useAuth';
 import { useUIStore } from '../stores/uiStore';
 import { Spinner } from '../components/ui/Spinner';
+import { Button } from '../components/ui/Button';
 import { formatTimeAgo } from '../utils/time';
 
 const ITEMS_PER_PAGE = 16;
@@ -78,10 +79,14 @@ export function ProfileScreen() {
       </div>
 
       {/* Sign Out Button - at top for easy access */}
-      <div style={{ textAlign: 'center', padding: '12px 0' }}>
-        <button onClick={handleLogout} className="btn-link" style={{ color: 'var(--coral)' }}>
+      <div style={{ textAlign: 'center', padding: '16px 20px' }}>
+        <Button
+          variant="secondary"
+          onClick={handleLogout}
+          style={{ width: '100%', color: 'var(--coral)', borderColor: 'var(--coral)' }}
+        >
           Sign Out
-        </button>
+        </Button>
       </div>
 
       {/* Friends Section */}
