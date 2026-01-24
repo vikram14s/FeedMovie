@@ -77,6 +77,13 @@ export function ProfileScreen() {
         </div>
       </div>
 
+      {/* Sign Out Button - at top for easy access */}
+      <div style={{ textAlign: 'center', padding: '12px 0' }}>
+        <button onClick={handleLogout} className="btn-link" style={{ color: 'var(--coral)' }}>
+          Sign Out
+        </button>
+      </div>
+
       {/* Friends Section */}
       <div className="profile-section">
         <div className="profile-section-title">Friends</div>
@@ -188,13 +195,6 @@ export function ProfileScreen() {
             No activity yet
           </p>
         )}
-      </div>
-
-      {/* Logout Button */}
-      <div style={{ textAlign: 'center', padding: '20px' }}>
-        <button onClick={handleLogout} className="btn-link" style={{ color: 'var(--coral)' }}>
-          Sign Out
-        </button>
       </div>
     </div>
   );
