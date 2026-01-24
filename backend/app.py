@@ -1504,15 +1504,27 @@ def serve_static(path):
     return send_from_directory(FRONTEND_DIR, 'index.html')
 
 
+def run_startup_tasks():
+    """Run startup tasks in background thread."""
+    import time
+    time.sleep(2)  # Wait for server to be ready
+    try:
+        print("🔧 Running startup tasks...")
+        populate_onboarding_movies()
+        ensure_curators_exist()
+        print("✅ Startup tasks complete!")
+    except Exception as e:
+        print(f"⚠️ Startup task error: {e}")
+
+
 if __name__ == '__main__':
-    # Initialize database tables on startup
+    # Initialize database tables on startup (fast)
     init_database()
 
-    # Populate onboarding movies (for swipe onboarding)
-    populate_onboarding_movies()
-
-    # Create curator accounts with activity (for feed)
-    ensure_curators_exist()
+    # Run population tasks in background thread (slow, shouldn't block startup)
+    import threading
+    startup_thread = threading.Thread(target=run_startup_tasks, daemon=True)
+    startup_thread.start()
 
     # Use PORT from environment (Railway sets this) or default to 5000
     port = int(os.environ.get('PORT', 5000))
