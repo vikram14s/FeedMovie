@@ -5,15 +5,15 @@ builder = "nixpacks"
 # Install both Node.js and Python
 providers = ["python", "node"]
 
-# Build frontend first, then install Python deps and Playwright with system deps
+# Build frontend first, then install Python deps
 buildPhase = """
 cd frontend && npm ci && npm run build && cd .. && \
-pip install -r requirements.txt && \
-playwright install --with-deps chromium
+pip install -r requirements.txt
 """
 
 [deploy]
-startCommand = "cd backend && python app.py"
+# Install Playwright browsers at runtime (build env differs from runtime env)
+startCommand = "playwright install --with-deps chromium && cd backend && python app.py"
 
 # Health check
 healthcheckPath = "/api/health"
