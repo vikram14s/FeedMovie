@@ -1353,6 +1353,36 @@ def get_profile_friends(current_user):
         }), 500
 
 
+@app.route('/api/profile/friends', methods=['POST'])
+@require_auth
+def add_profile_friend(current_user):
+    """Add a friend/curator to follow."""
+    try:
+        user_id = current_user['user_id']
+        data = request.get_json()
+        name = data.get('name', '').strip()
+
+        if not name:
+            return jsonify({
+                'success': False,
+                'error': 'Friend name is required'
+            }), 400
+
+        friend_id = add_friend(name, user_id=user_id)
+
+        return jsonify({
+            'success': True,
+            'friend_id': friend_id,
+            'message': f'Added {name} as a friend'
+        })
+
+    except Exception as e:
+        return jsonify({
+            'success': False,
+            'error': str(e)
+        }), 500
+
+
 # ============================================================
 # WATCHLIST MARK SEEN
 # ============================================================
