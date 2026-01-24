@@ -23,6 +23,8 @@ import json
 import tmdb_client
 from taste_profiles import get_all_profiles, get_profile, build_profile_prompt_context
 from swipe_analytics import get_swipe_patterns, get_swipe_summary
+from populate_onboarding import populate_onboarding_movies
+from curators import ensure_curators_exist
 
 app = Flask(__name__)
 CORS(app)  # Enable CORS for frontend
@@ -1368,7 +1370,14 @@ def add_profile_friend(current_user):
                 'error': 'Friend name is required'
             }), 400
 
-        friend_id = add_friend(name, user_id=user_id)
+        # Check if this is a curator (system account)
+        from curators import CURATORS
+        curator_username = None
+        if name in CURATORS:
+            curator_username = CURATORS[name]["username"]
+
+        # Add friend with curator username if applicable
+        friend_id = add_friend(name, curator_username=curator_username, user_id=user_id)
 
         return jsonify({
             'success': True,
@@ -1498,6 +1507,12 @@ def serve_static(path):
 if __name__ == '__main__':
     # Initialize database tables on startup
     init_database()
+
+    # Populate onboarding movies (for swipe onboarding)
+    populate_onboarding_movies()
+
+    # Create curator accounts with activity (for feed)
+    ensure_curators_exist()
 
     # Use PORT from environment (Railway sets this) or default to 5000
     port = int(os.environ.get('PORT', 5000))

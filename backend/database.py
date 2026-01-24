@@ -830,15 +830,26 @@ def remove_from_watchlist(tmdb_id: int, user_id: Optional[int] = None):
     conn.close()
 
 
-def add_friend(name: str, letterboxd_username: str = None, user_id: Optional[int] = None) -> int:
-    """Add a new friend."""
+def add_friend(name: str, letterboxd_username: str = None, user_id: Optional[int] = None, curator_username: str = None) -> int:
+    """Add a new friend.
+
+    Args:
+        name: Display name of the friend
+        letterboxd_username: Letterboxd username (for imported friends)
+        user_id: The user who is adding this friend
+        curator_username: Username of curator account (for system curators)
+    """
     conn = get_connection()
     cursor = conn.cursor()
+
+    # If curator_username is provided, use it as the letterboxd_username
+    # (the feed query matches on this field to find user accounts)
+    effective_username = curator_username or letterboxd_username
 
     cursor.execute('''
         INSERT OR REPLACE INTO friends (name, letterboxd_username, user_id)
         VALUES (?, ?, ?)
-    ''', (name, letterboxd_username, user_id))
+    ''', (name, effective_username, user_id))
 
     friend_id = cursor.lastrowid
     conn.commit()
@@ -1098,6 +1109,10 @@ def get_friends_activity(user_id: int, limit: int = 50, offset: int = 0) -> List
     cursor = conn.cursor()
 
     # Get activity from friends (users in the friends table for this user)
+    # Matches friends to users via:
+    # 1. letterboxd_username to letterboxd_username (for imported Letterboxd friends)
+    # 2. letterboxd_username to username (for curators - username stored in letterboxd_username field)
+    # 3. name to username (fallback name matching)
     cursor.execute('''
         SELECT a.id, a.action_type, a.rating, a.review_text, a.created_at,
                u.id as user_id, u.username, u.profile_picture_url,
@@ -1111,7 +1126,12 @@ def get_friends_activity(user_id: int, limit: int = 50, offset: int = 0) -> List
         WHERE a.user_id IN (
             SELECT u2.id FROM friends f
             JOIN users u2 ON f.letterboxd_username = u2.letterboxd_username
-            WHERE f.user_id = ?
+            WHERE f.user_id = ? AND f.letterboxd_username IS NOT NULL
+        )
+        OR a.user_id IN (
+            SELECT u2.id FROM friends f
+            JOIN users u2 ON LOWER(f.letterboxd_username) = LOWER(u2.username)
+            WHERE f.user_id = ? AND f.letterboxd_username IS NOT NULL
         )
         OR a.user_id IN (
             SELECT u2.id FROM friends f
@@ -1120,7 +1140,7 @@ def get_friends_activity(user_id: int, limit: int = 50, offset: int = 0) -> List
         )
         ORDER BY a.created_at DESC
         LIMIT ? OFFSET ?
-    ''', (user_id, user_id, user_id, limit, offset))
+    ''', (user_id, user_id, user_id, user_id, limit, offset))
 
     activities = []
     for row in cursor.fetchall():
