@@ -11,7 +11,7 @@ from database import (
     add_movie, add_rating, get_watchlist, remove_from_watchlist, get_connection,
     create_user, get_user_by_email, get_user_by_id, get_user_by_username,
     update_user_onboarding, get_onboarding_movies, init_database,
-    get_all_friends, get_user_library, add_friend,
+    get_all_friends, get_user_library,
     # Social features
     create_or_update_review, get_user_reviews, get_movie_reviews,
     create_activity, get_friends_activity, get_user_activity,
@@ -1384,218 +1384,6 @@ def add_profile_friend(current_user):
 
 
 # ============================================================
-# USER SEARCH AND PROFILES
-# ============================================================
-
-@app.route('/api/users/search', methods=['GET'])
-@require_auth
-def search_users(current_user):
-    """
-    Search for users by username.
-
-    Query params:
-    - q: Search query (required)
-    """
-    try:
-        query = request.args.get('q', '').strip()
-        if not query:
-            return jsonify({
-                'success': False,
-                'error': 'Search query is required'
-            }), 400
-
-        user_id = current_user['user_id']
-
-        conn = get_connection()
-        cursor = conn.cursor()
-
-        # Search for users matching the query (exclude current user)
-        cursor.execute('''
-            SELECT u.id, u.username, u.bio,
-                   (SELECT COUNT(*) FROM ratings WHERE user_id = u.id) as movies_watched
-            FROM users u
-            WHERE u.username LIKE ? AND u.id != ?
-            LIMIT 20
-        ''', (f'%{query}%', user_id))
-        rows = cursor.fetchall()
-
-        # Check which users are already friends
-        users = []
-        for row in rows:
-            cursor.execute('''
-                SELECT id FROM friends WHERE user_id = ? AND name = ?
-            ''', (user_id, row['username']))
-            is_friend = cursor.fetchone() is not None
-
-            users.append({
-                'id': row['id'],
-                'username': row['username'],
-                'bio': row['bio'],
-                'movies_watched': row['movies_watched'] or 0,
-                'is_friend': is_friend
-            })
-
-        conn.close()
-
-        return jsonify({
-            'success': True,
-            'users': users
-        })
-
-    except Exception as e:
-        print(f"User search error: {e}")
-        return jsonify({
-            'success': False,
-            'error': str(e)
-        }), 500
-
-
-@app.route('/api/users/<int:target_user_id>/profile', methods=['GET'])
-@require_auth
-def get_user_profile_by_id(target_user_id, current_user):
-    """Get a user's profile by ID."""
-    try:
-        user = get_user_by_id(target_user_id)
-
-        if not user:
-            return jsonify({
-                'success': False,
-                'error': 'User not found'
-            }), 404
-
-        stats = get_user_stats(target_user_id)
-        recent_activity = get_user_activity(target_user_id, limit=6)
-
-        # Check if current user follows this user
-        user_id = current_user['user_id']
-        conn = get_connection()
-        cursor = conn.cursor()
-        cursor.execute('''
-            SELECT id FROM friends WHERE user_id = ? AND name = ?
-        ''', (user_id, user['username']))
-        is_friend = cursor.fetchone() is not None
-        conn.close()
-
-        return jsonify({
-            'success': True,
-            'profile': {
-                'id': user['id'],
-                'username': user['username'],
-                'bio': user.get('bio'),
-                'stats': stats,
-                'recent_activity': recent_activity
-            },
-            'is_friend': is_friend
-        })
-
-    except Exception as e:
-        return jsonify({
-            'success': False,
-            'error': str(e)
-        }), 500
-
-
-@app.route('/api/movies/<int:tmdb_id>/reviews', methods=['GET'])
-@optional_auth
-def get_movie_reviews_endpoint(tmdb_id, current_user):
-    """Get reviews for a specific movie."""
-    try:
-        movie = get_movie_by_tmdb_id(tmdb_id)
-        if not movie:
-            return jsonify({
-                'success': True,
-                'reviews': []
-            })
-
-        limit = int(request.args.get('limit', 50))
-        reviews = get_movie_reviews(movie['id'], limit)
-
-        return jsonify({
-            'success': True,
-            'reviews': reviews
-        })
-
-    except Exception as e:
-        return jsonify({
-            'success': False,
-            'error': str(e)
-        }), 500
-
-
-@app.route('/api/movies/<int:tmdb_id>/friends', methods=['GET'])
-@require_auth
-def get_friends_who_watched(tmdb_id, current_user):
-    """Get friends who have watched/rated this movie."""
-    try:
-        user_id = current_user['user_id']
-
-        # Get the movie
-        movie = get_movie_by_tmdb_id(tmdb_id)
-        if not movie:
-            return jsonify({
-                'success': True,
-                'friends': []
-            })
-
-        movie_id = movie['id']
-
-        conn = get_connection()
-        cursor = conn.cursor()
-
-        # Get friends who have rated this movie
-        # First get the user's friends (by username)
-        cursor.execute('''
-            SELECT f.name as friend_name
-            FROM friends f
-            WHERE f.user_id = ?
-        ''', (user_id,))
-        friend_names = [row['friend_name'] for row in cursor.fetchall()]
-
-        if not friend_names:
-            conn.close()
-            return jsonify({
-                'success': True,
-                'friends': []
-            })
-
-        # Find users with those names who have rated this movie
-        placeholders = ','.join(['?' for _ in friend_names])
-        cursor.execute(f'''
-            SELECT u.id, u.username, r.rating, a.review_text, a.created_at
-            FROM users u
-            JOIN ratings r ON u.id = r.user_id
-            LEFT JOIN activity a ON u.id = a.user_id AND a.movie_id = r.movie_id
-            WHERE u.username IN ({placeholders})
-            AND r.movie_id = ?
-            ORDER BY r.created_at DESC
-        ''', (*friend_names, movie_id))
-
-        friends_watched = []
-        for row in cursor.fetchall():
-            friends_watched.append({
-                'id': row['id'],
-                'username': row['username'],
-                'rating': row['rating'],
-                'review_text': row['review_text'],
-                'watched_at': row['created_at']
-            })
-
-        conn.close()
-
-        return jsonify({
-            'success': True,
-            'friends': friends_watched
-        })
-
-    except Exception as e:
-        print(f"Error getting friends who watched: {e}")
-        return jsonify({
-            'success': False,
-            'error': str(e)
-        }), 500
-
-
-# ============================================================
 # WATCHLIST MARK SEEN
 # ============================================================
 
@@ -1672,38 +1460,54 @@ def health():
     return jsonify({'status': 'ok'})
 
 
+# ============================================================
+# STATIC FILE SERVING (Frontend)
+# ============================================================
+
+import os
+
+# In production, serve from the built frontend/dist folder
+# In development, serve from frontend/ (source files)
+FRONTEND_DIR = os.path.join(os.path.dirname(__file__), '..', 'frontend', 'dist')
+if not os.path.exists(FRONTEND_DIR):
+    # Fallback to dev mode (source files)
+    FRONTEND_DIR = os.path.join(os.path.dirname(__file__), '..', 'frontend')
+
+
 @app.route('/')
 def index():
     """Serve the frontend."""
     from flask import send_from_directory
-    import os
-    # Serve from dist/ for production build, fallback to frontend/ for dev
-    frontend_path = '../frontend/dist' if os.path.exists('../frontend/dist/index.html') else '../frontend'
-    return send_from_directory(frontend_path, 'index.html')
+    return send_from_directory(FRONTEND_DIR, 'index.html')
 
 
 @app.route('/<path:path>')
 def serve_static(path):
-    """Serve static files with SPA fallback."""
+    """Serve static files, with SPA fallback for client-side routing."""
     from flask import send_from_directory
-    import os
-    # Serve from dist/ for production build, fallback to frontend/ for dev
-    frontend_path = '../frontend/dist' if os.path.exists('../frontend/dist/index.html') else '../frontend'
-    file_path = os.path.join(frontend_path, path)
 
-    # If file exists, serve it; otherwise return index.html for SPA routing
-    if os.path.exists(file_path) and os.path.isfile(file_path):
-        return send_from_directory(frontend_path, path)
-    return send_from_directory(frontend_path, 'index.html')
+    # Try to serve the file directly
+    file_path = os.path.join(FRONTEND_DIR, path)
+    if os.path.isfile(file_path):
+        return send_from_directory(FRONTEND_DIR, path)
+
+    # For SPA: return index.html for any non-file routes (client-side routing)
+    return send_from_directory(FRONTEND_DIR, 'index.html')
 
 
 if __name__ == '__main__':
-    import os
+    # Use PORT from environment (Railway sets this) or default to 5000
     port = int(os.environ.get('PORT', 5000))
+    is_production = os.environ.get('RAILWAY_ENVIRONMENT') or os.environ.get('PRODUCTION')
 
     print("\n🎬 Starting FeedMovie API server...")
-    print(f"🌐 Frontend: http://localhost:{port}")
+    print(f"🌐 Server: http://localhost:{port}")
     print(f"📡 API: http://localhost:{port}/api/recommendations")
+    print(f"🔧 Mode: {'Production' if is_production else 'Development'}")
     print("\n✨ Happy movie hunting!\n")
 
-    app.run(debug=True, host='0.0.0.0', port=port)
+    app.run(
+        debug=not is_production,
+        host='0.0.0.0',
+        port=port
+    )
