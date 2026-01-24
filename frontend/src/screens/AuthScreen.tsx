@@ -50,7 +50,7 @@ export function AuthScreen() {
   return (
     <div className="auth-container">
       <div className="auth-logo">feedmovie</div>
-      <p className="auth-tagline">AI-powered movie recommendations, just for you</p>
+      <p className="auth-tagline">Never let your food go cold because you couldn't pick a movie</p>
 
       <div className="auth-card">
         <h2 className="auth-title">
