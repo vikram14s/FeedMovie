@@ -11,7 +11,7 @@ from database import (
     add_movie, add_rating, get_watchlist, remove_from_watchlist, get_connection,
     create_user, get_user_by_email, get_user_by_id, get_user_by_username,
     update_user_onboarding, get_onboarding_movies, init_database,
-    get_all_friends, get_user_library,
+    get_all_friends, get_user_library, add_friend,
     # Social features
     create_or_update_review, get_user_reviews, get_movie_reviews,
     create_activity, get_friends_activity, get_user_activity,
@@ -464,7 +464,10 @@ def get_recommendations(current_user):
         genres = [g.strip() for g in genres_param.split(',') if g.strip()] if genres_param else None
 
         user_id = current_user['user_id'] if current_user else None
+        print(f"📽️ Recommendations request for user {user_id}")
+
         recommendations, total_unshown = get_top_recommendations(limit=limit, genres=genres, user_id=user_id)
+        print(f"   → Found {len(recommendations)} recommendations, {total_unshown} total unshown")
 
         return jsonify({
             'success': True,
@@ -1084,7 +1087,14 @@ def get_feed(current_user):
         limit = int(request.args.get('limit', 50))
         offset = int(request.args.get('offset', 0))
 
+        # Debug: check user's friends
+        friends = get_all_friends(user_id)
+        print(f"📋 Feed request for user {user_id}: has {len(friends)} friends")
+        for f in friends[:5]:  # Log first 5
+            print(f"   Friend: {f.get('name')} (username: {f.get('letterboxd_username')})")
+
         activities = get_friends_activity(user_id, limit, offset)
+        print(f"   → Found {len(activities)} activities")
 
         return jsonify({
             'success': True,
@@ -1510,11 +1520,16 @@ def run_startup_tasks():
     time.sleep(2)  # Wait for server to be ready
     try:
         print("🔧 Running startup tasks...")
+        print("  → Populating onboarding movies...")
         populate_onboarding_movies()
-        ensure_curators_exist()
+        print("  → Creating curator accounts...")
+        curators_created = ensure_curators_exist()
+        print(f"  → Curators created: {curators_created}")
         print("✅ Startup tasks complete!")
     except Exception as e:
+        import traceback
         print(f"⚠️ Startup task error: {e}")
+        traceback.print_exc()
 
 
 if __name__ == '__main__':
