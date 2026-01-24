@@ -1496,6 +1496,9 @@ def serve_static(path):
 
 
 if __name__ == '__main__':
+    # Initialize database tables on startup
+    init_database()
+
     # Use PORT from environment (Railway sets this) or default to 5000
     port = int(os.environ.get('PORT', 5000))
     is_production = os.environ.get('RAILWAY_ENVIRONMENT') or os.environ.get('PRODUCTION')
