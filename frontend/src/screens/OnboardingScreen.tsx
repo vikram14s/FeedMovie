@@ -1,6 +1,6 @@
 import { useState, useCallback } from 'react';
 import { useAuth } from '../hooks/useAuth';
-import { onboardingApi } from '../api/client';
+import { onboardingApi, profileApi } from '../api/client';
 import type { Movie } from '../types';
 import { Button } from '../components/ui/Button';
 import { StarRating } from '../components/ui/StarRating';
@@ -301,9 +301,24 @@ export function OnboardingScreen() {
   }, []);
 
   const saveCurators = useCallback(async () => {
-    // In a real implementation, this would save the selected curators as friends
-    // For now, we'll just proceed to genres
-    // TODO: Call API to add curators as friends
+    // Save selected curators as friends
+    if (selectedCurators.length > 0) {
+      try {
+        // Add each selected curator as a friend
+        await Promise.all(
+          selectedCurators.map((curatorId) => {
+            const curator = curatorProfiles.find((c) => c.id === curatorId);
+            if (curator) {
+              return profileApi.addFriend(curator.name);
+            }
+            return Promise.resolve();
+          })
+        );
+      } catch (err) {
+        console.error('Error adding curators as friends:', err);
+        // Continue anyway - don't block onboarding
+      }
+    }
     setStep('genres');
   }, [selectedCurators]);
 
