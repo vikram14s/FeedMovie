@@ -29,7 +29,16 @@ export function DiscoverScreen() {
     loadRecommendations();
   }, []); // Only on mount
 
-  // Auto-generate for new users with no recommendations
+  // Auto-generate when empty (after onboarding or for new users)
+  useEffect(() => {
+    if (isEmpty && !isLoading && !isGenerating) {
+      // Automatically start generating when there are no recommendations
+      setIsGenerating(true);
+      generateMore().finally(() => setIsGenerating(false));
+    }
+  }, [isEmpty, isLoading, isGenerating, generateMore]);
+
+  // Manual generate button handler (fallback)
   const handleGenerateRecommendations = useCallback(async () => {
     setIsGenerating(true);
     try {
@@ -93,16 +102,28 @@ export function DiscoverScreen() {
     );
   }
 
-  // Empty state - no recommendations yet
+  // Empty state - no recommendations yet (auto-generating)
   if (isEmpty && !hasMore) {
+    // When empty, we auto-generate - show generating state
+    if (isGenerating) {
+      return (
+        <div className="loading">
+          <Spinner />
+          <p className="loading-text">Consulting our AI movie experts...</p>
+          <p className="loading-subtext" style={{ marginTop: '8px', fontSize: '14px', color: 'var(--text-muted)' }}>
+            This usually takes 30-60 seconds
+          </p>
+        </div>
+      );
+    }
+
+    // Fallback button if auto-generate didn't start for some reason
     return (
       <div className="empty-state">
         <div className="empty-icon">🎬</div>
         <h2 className="empty-title">Ready to discover movies?</h2>
         <p className="empty-text">
-          {isGenerating
-            ? 'Our AI is finding perfect movies for you...'
-            : 'Click below to generate personalized recommendations based on your taste'}
+          Click below to generate personalized recommendations based on your taste
         </p>
         <Button
           variant="primary"
@@ -110,7 +131,7 @@ export function DiscoverScreen() {
           disabled={isGenerating}
           style={{ marginTop: '16px' }}
         >
-          {isGenerating ? 'Generating...' : 'Generate Recommendations'}
+          Generate Recommendations
         </Button>
       </div>
     );
