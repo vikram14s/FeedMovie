@@ -443,25 +443,24 @@ export function OnboardingScreen() {
     setStep('genres');
   }, []);
 
-  const saveCurators = useCallback(async () => {
-    // Save selected curators as friends
+  const saveCurators = useCallback(() => {
+    // Save selected curators as friends (fire and forget - don't block UI)
     if (selectedCurators.length > 0) {
-      try {
-        // Add each selected curator as a friend
-        await Promise.all(
-          selectedCurators.map((curatorId) => {
-            const curator = curatorProfiles.find((c) => c.id === curatorId);
-            if (curator) {
-              return profileApi.addFriend(curator.name);
-            }
-            return Promise.resolve();
-          })
-        );
-      } catch (err) {
+      Promise.all(
+        selectedCurators.map((curatorId) => {
+          const curator = curatorProfiles.find((c) => c.id === curatorId);
+          if (curator) {
+            return profileApi.addFriend(curator.name).catch(() => {
+              // Ignore individual errors
+            });
+          }
+          return Promise.resolve();
+        })
+      ).catch((err) => {
         console.error('Error adding curators as friends:', err);
-        // Continue anyway - don't block onboarding
-      }
+      });
     }
+    // Always advance to next step immediately
     setStep('genres');
   }, [selectedCurators]);
 
@@ -476,52 +475,19 @@ export function OnboardingScreen() {
 
   const completeOnboarding = async (type: 'letterboxd' | 'swipe') => {
     setIsLoading(true);
-    setLoadingText('Generating your personalized recommendations...');
+    setLoadingText('Setting up your account...');
 
     try {
-      // Trigger recommendation generation
+      // Trigger recommendation generation on backend
       await onboardingApi.complete();
 
-      // Poll for recommendations (AI generation can take 30-60 seconds)
-      const maxAttempts = 20;
-      const pollInterval = 3000;
-      const loadingMessages = [
-        'Analyzing your taste profile...',
-        'Consulting our AI movie experts...',
-        'Finding hidden gems just for you...',
-        'Almost there...',
-      ];
-
-      for (let attempt = 0; attempt < maxAttempts; attempt++) {
-        // Update loading message for better feedback
-        const msgIndex = Math.min(Math.floor(attempt / 5), loadingMessages.length - 1);
-        setLoadingText(loadingMessages[msgIndex]);
-
-        await new Promise((resolve) => setTimeout(resolve, pollInterval));
-
-        // Check if recommendations are ready
-        try {
-          const { recommendationsApi } = await import('../api/client');
-          const data = await recommendationsApi.get({ limit: 5 });
-
-          if (data.recommendations && data.recommendations.length > 0) {
-            // Recommendations ready! Complete onboarding
-            resetToDiscover();
-            if (user) {
-              setUser({ ...user, onboarding_completed: true, onboarding_type: type });
-            }
-            return;
-          }
-        } catch {
-          // Continue polling
-        }
-      }
-
-      // Timeout - complete anyway and let user manually generate
-      resetToDiscover();
+      // Mark onboarding as complete and go to Discover
+      // The Discover screen will auto-generate if no recommendations
+      setIsLoading(false);
       if (user) {
         setUser({ ...user, onboarding_completed: true, onboarding_type: type });
       }
+      resetToDiscover();
     } catch (err) {
       console.error('Error completing onboarding:', err);
       setError('Failed to complete setup. Please try again.');
@@ -936,7 +902,7 @@ export function OnboardingScreen() {
               Start Discovering
             </Button>
             <Button variant="link" onClick={skipGenreSelection}>
-              Show me everything
+              Just pick for me
             </Button>
           </div>
         </div>
