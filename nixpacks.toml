@@ -1,16 +1,21 @@
 # Nixpacks config for FeedMovie
 # Builds frontend (Node) and backend (Python)
 
+# Disable auto-detection - use our custom phases
+providers = []
+
 [phases.setup]
-nixPkgs = ["python312", "nodejs_20", "gcc"]
+nixPkgs = ["python312", "nodejs_20", "npm", "gcc"]
 
 [phases.install]
+dependsOn = ["setup"]
 cmds = [
     "cd frontend && npm ci",
     "pip install -r requirements.txt"
 ]
 
 [phases.build]
+dependsOn = ["install"]
 cmds = ["cd frontend && npm run build"]
 
 [start]
