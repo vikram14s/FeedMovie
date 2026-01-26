@@ -5,10 +5,15 @@ builder = "nixpacks"
 # Install both Node.js and Python
 providers = ["python", "node"]
 
-# Build frontend first, then install Python deps
+# Install phase: Python deps + Node deps
+installPhase = """
+pip install -r requirements.txt && \
+cd frontend && npm ci
+"""
+
+# Build phase: Build the frontend
 buildPhase = """
-cd frontend && npm ci && npm run build && cd .. && \
-pip install -r requirements.txt
+cd frontend && npm run build
 """
 
 [deploy]
