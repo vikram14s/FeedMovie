@@ -1,10 +1,7 @@
 [build]
-builder = "nixpacks"
+builder = "dockerfile"
 
 [deploy]
-# Install Playwright browsers at runtime (build env differs from runtime env)
-startCommand = "playwright install --with-deps chromium && cd backend && python app.py"
-
 # Health check (longer timeout for first deploy)
 healthcheckPath = "/api/health"
 healthcheckTimeout = 300
