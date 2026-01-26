@@ -30,8 +30,7 @@ COPY backend/ ./backend/
 # Copy built frontend from stage 1
 COPY --from=frontend-builder /app/frontend/dist ./frontend/dist
 
-# Copy other necessary files
-COPY data/ ./data/ 2>/dev/null || true
+# Data directory will be mounted as a volume by Railway
 
 # Expose port (Railway sets PORT env var)
 EXPOSE 5000
