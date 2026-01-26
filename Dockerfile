@@ -11,11 +11,14 @@ RUN npm run build
 # Stage 2: Python backend with frontend assets
 FROM python:3.12-slim
 
-# Install system dependencies for Playwright
+# Install system dependencies for Playwright and building Python packages
 RUN apt-get update && apt-get install -y \
     wget \
     gnupg \
     ca-certificates \
+    gcc \
+    g++ \
+    python3-dev \
     && rm -rf /var/lib/apt/lists/*
 
 WORKDIR /app
