@@ -1,0 +1,17 @@
+# Nixpacks config for FeedMovie
+# Builds frontend (Node) and backend (Python)
+
+[phases.setup]
+nixPkgs = ["python312", "nodejs_20", "gcc"]
+
+[phases.install]
+cmds = [
+    "cd frontend && npm ci",
+    "pip install -r requirements.txt"
+]
+
+[phases.build]
+cmds = ["cd frontend && npm run build"]
+
+[start]
+cmd = "playwright install --with-deps chromium && cd backend && python app.py"

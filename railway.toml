@@ -1,21 +1,6 @@
 [build]
 builder = "nixpacks"
 
-[build.nixpacks]
-# Install both Node.js and Python
-providers = ["python", "node"]
-
-# Install phase: Python deps + Node deps
-installPhase = """
-pip install -r requirements.txt && \
-cd frontend && npm ci
-"""
-
-# Build phase: Build the frontend
-buildPhase = """
-cd frontend && npm run build
-"""
-
 [deploy]
 # Install Playwright browsers at runtime (build env differs from runtime env)
 startCommand = "playwright install --with-deps chromium && cd backend && python app.py"
