@@ -1,12 +1,42 @@
 # FeedMovie Context Summary
 
-*Last updated: 2026-01-24*
+*Last updated: 2026-01-26*
 
 ## Project Overview
 
 FeedMovie is a multi-user movie recommendation platform with a Tinder-style swipe interface. It uses AI models (Claude, Gemini) combined with collaborative filtering to provide personalized recommendations based on Letterboxd rating history.
 
-## Recent Session Summary (Jan 24, 2026)
+## TODO for Next Session
+
+1. **Improve recommendation quality** - Choices have been mediocre; need better AI prompts, weighting, or filtering
+2. **Speed up recommendation engine** - Even with parallelization, generation is slow; consider caching, fewer API calls, or smarter batching
+
+---
+
+## Recent Session Summary (Jan 26, 2026)
+
+### Backend Speedup - Merged
+- Parallelized AI model calls (Claude, Gemini, ChatGPT) using ThreadPoolExecutor
+- TMDB enrichment runs in parallel (4 workers)
+- Genre diversity fills run in parallel
+- Added timing metrics
+
+### UI Improvements
+- **Find Friends Modal**: Now shows suggested users list by default (easier to discover users when platform is new)
+- **Watchlist Items**: Now clickable to open movie detail modal
+- **Onboarding "Add your favorites"**: Redesigned with stacked Google Forms-style UI
+  - Each added movie appears as a numbered row with poster, title, year, rating
+  - New search input appears below with next number
+  - Search results show inline within the current row
+
+### Cleanup
+- Deleted old branches: `backend-speedup`, `react-rewrite`
+- Removed associated git worktrees
+- Both Railway and Vercel auto-deployed latest changes
+
+---
+
+## Previous Session Summary (Jan 24, 2026)
 
 ### React Frontend - Social Features Completed
 
