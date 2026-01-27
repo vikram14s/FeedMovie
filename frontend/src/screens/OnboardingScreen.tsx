@@ -1,4 +1,4 @@
-import { useState, useCallback } from 'react';
+import { useState, useCallback, useRef } from 'react';
 import { useAuth } from '../hooks/useAuth';
 import { onboardingApi, profileApi, searchApi } from '../api/client';
 import type { Movie } from '../types';
@@ -231,6 +231,7 @@ export function OnboardingScreen() {
   const [searchLoading, setSearchLoading] = useState(false);
   const [addedMovies, setAddedMovies] = useState<Movie[]>([]);
   const [addedMovieRatings, setAddedMovieRatings] = useState<Record<number, number>>({});
+  const searchInputRef = useRef<HTMLInputElement>(null);
 
   const selectPath = useCallback((path: 'letterboxd' | 'swipe') => {
     setOnboardingType(path);
@@ -349,8 +350,11 @@ export function OnboardingScreen() {
 
     setAddedMovies((prev) => [...prev, movie]);
     setAddedMovieRatings((prev) => ({ ...prev, [movie.tmdb_id]: rating }));
-    // Remove from search results
-    setSearchResults((prev) => prev.filter((m) => m.tmdb_id !== movie.tmdb_id));
+    // Clear search for fresh next entry
+    setSearchQuery('');
+    setSearchResults([]);
+    // Focus input for next search
+    setTimeout(() => searchInputRef.current?.focus(), 50);
   }, [addedMovies]);
 
   const removeAddedMovie = useCallback((tmdb_id: number) => {
@@ -665,88 +669,139 @@ export function OnboardingScreen() {
         <div className="selection-card" style={{ maxWidth: '500px' }}>
           <h2 className="selection-title">Add your favorites</h2>
           <p className="selection-subtitle">
-            Search for movies you love ({addedMovies.length}/{MAX_SEARCH_ADDITIONS} added)
+            Add up to {MAX_SEARCH_ADDITIONS} movies you love
           </p>
 
-          {/* Search input */}
-          <div style={{ display: 'flex', gap: '8px', marginBottom: '16px' }}>
-            <input
-              type="text"
-              className="form-input"
-              placeholder="Search for a movie..."
-              value={searchQuery}
-              onChange={(e) => setSearchQuery(e.target.value)}
-              onKeyDown={(e) => e.key === 'Enter' && handleSearch()}
-              style={{ flex: 1 }}
-            />
-            <Button variant="secondary" onClick={handleSearch} disabled={searchLoading}>
-              {searchLoading ? '...' : 'Search'}
-            </Button>
-          </div>
-
-          {/* Search results */}
-          {searchResults.length > 0 && canAddMore && (
-            <div style={{ marginBottom: '16px' }}>
-              <p style={{ fontSize: '12px', color: 'var(--text-muted)', marginBottom: '8px' }}>
-                Tap a rating to add the movie
-              </p>
-              <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
-                {searchResults.map((movie) => (
-                  <SearchResultItem
-                    key={movie.tmdb_id}
-                    movie={movie}
-                    onAdd={(rating) => addMovieFromSearch(movie, rating)}
+          {/* Stacked movie entries - Google Forms style */}
+          <div style={{ display: 'flex', flexDirection: 'column', gap: '12px', marginBottom: '20px' }}>
+            {/* Already added movies */}
+            {addedMovies.map((movie, index) => (
+              <div
+                key={movie.tmdb_id}
+                style={{
+                  display: 'flex',
+                  alignItems: 'center',
+                  gap: '12px',
+                  padding: '12px',
+                  background: 'var(--bg-secondary)',
+                  borderRadius: '8px',
+                  border: '1px solid var(--border)',
+                }}
+              >
+                <span style={{ color: 'var(--text-muted)', fontSize: '14px', minWidth: '20px' }}>
+                  {index + 1}.
+                </span>
+                {movie.poster_path ? (
+                  <img
+                    src={movie.poster_path}
+                    alt={movie.title}
+                    style={{ width: '36px', height: '54px', borderRadius: '4px', objectFit: 'cover' }}
                   />
-                ))}
-              </div>
-            </div>
-          )}
-
-          {/* Added movies */}
-          {addedMovies.length > 0 && (
-            <div style={{ marginBottom: '16px' }}>
-              <p style={{ fontSize: '12px', color: 'var(--text-muted)', marginBottom: '8px' }}>
-                Your added movies
-              </p>
-              <div style={{ display: 'flex', flexDirection: 'column', gap: '6px' }}>
-                {addedMovies.map((movie) => (
+                ) : (
                   <div
-                    key={movie.tmdb_id}
                     style={{
+                      width: '36px',
+                      height: '54px',
+                      borderRadius: '4px',
+                      background: 'var(--bg-tertiary)',
                       display: 'flex',
                       alignItems: 'center',
-                      justifyContent: 'space-between',
-                      padding: '8px 12px',
-                      background: 'var(--bg-secondary)',
-                      borderRadius: '8px',
+                      justifyContent: 'center',
+                      fontSize: '12px',
                     }}
                   >
-                    <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-                      <span style={{ fontWeight: 500 }}>{movie.title}</span>
-                      <span style={{ color: 'var(--text-muted)', fontSize: '13px' }}>
-                        ({movie.year})
-                      </span>
-                      <span style={{ color: 'var(--accent)', fontSize: '13px' }}>
-                        ★ {addedMovieRatings[movie.tmdb_id]}
-                      </span>
-                    </div>
-                    <button
-                      onClick={() => removeAddedMovie(movie.tmdb_id)}
-                      style={{
-                        background: 'none',
-                        border: 'none',
-                        color: 'var(--text-muted)',
-                        cursor: 'pointer',
-                        padding: '4px',
-                      }}
-                    >
-                      ✕
-                    </button>
+                    🎬
                   </div>
-                ))}
+                )}
+                <div style={{ flex: 1, minWidth: 0 }}>
+                  <div style={{ fontWeight: 500, fontSize: '14px' }}>{movie.title}</div>
+                  <div style={{ fontSize: '12px', color: 'var(--text-muted)' }}>
+                    {movie.year} • <span style={{ color: 'var(--accent)' }}>★ {addedMovieRatings[movie.tmdb_id]}</span>
+                  </div>
+                </div>
+                <button
+                  onClick={() => removeAddedMovie(movie.tmdb_id)}
+                  style={{
+                    background: 'none',
+                    border: 'none',
+                    color: 'var(--text-muted)',
+                    cursor: 'pointer',
+                    padding: '8px',
+                    fontSize: '16px',
+                  }}
+                >
+                  ✕
+                </button>
               </div>
-            </div>
-          )}
+            ))}
+
+            {/* New search row - appears below added movies */}
+            {canAddMore && (
+              <div
+                style={{
+                  padding: '12px',
+                  background: 'var(--bg-secondary)',
+                  borderRadius: '8px',
+                  border: '2px dashed var(--border)',
+                }}
+              >
+                <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
+                  <span style={{ color: 'var(--text-muted)', fontSize: '14px', minWidth: '20px' }}>
+                    {addedMovies.length + 1}.
+                  </span>
+                  <input
+                    ref={searchInputRef}
+                    type="text"
+                    className="form-input"
+                    placeholder="Search for a movie..."
+                    value={searchQuery}
+                    onChange={(e) => setSearchQuery(e.target.value)}
+                    onKeyDown={(e) => e.key === 'Enter' && handleSearch()}
+                    style={{ flex: 1, background: 'var(--bg-primary)' }}
+                    autoFocus
+                  />
+                  <Button variant="secondary" onClick={handleSearch} disabled={searchLoading} style={{ padding: '8px 12px' }}>
+                    {searchLoading ? '...' : 'Search'}
+                  </Button>
+                </div>
+
+                {/* Search results dropdown */}
+                {searchResults.length > 0 && (
+                  <div style={{ marginTop: '12px', borderTop: '1px solid var(--border)', paddingTop: '12px' }}>
+                    <p style={{ fontSize: '11px', color: 'var(--text-muted)', marginBottom: '8px' }}>
+                      Tap a rating to add
+                    </p>
+                    <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
+                      {searchResults.map((movie) => (
+                        <SearchResultItem
+                          key={movie.tmdb_id}
+                          movie={movie}
+                          onAdd={(rating) => addMovieFromSearch(movie, rating)}
+                        />
+                      ))}
+                    </div>
+                  </div>
+                )}
+              </div>
+            )}
+
+            {/* Max reached message */}
+            {!canAddMore && (
+              <div
+                style={{
+                  padding: '12px',
+                  background: 'var(--bg-secondary)',
+                  borderRadius: '8px',
+                  border: '1px solid var(--accent)',
+                  textAlign: 'center',
+                  color: 'var(--text-muted)',
+                  fontSize: '13px',
+                }}
+              >
+                Maximum {MAX_SEARCH_ADDITIONS} movies added
+              </div>
+            )}
+          </div>
 
           <div className="selection-actions">
             <Button variant="primary" onClick={finishSwipeOnboarding}>
