@@ -68,7 +68,16 @@
       "Bash(agent-browser press:*)",
       "Bash(agent-browser close:*)",
       "Bash(railway volume --help:*)",
-      "Bash(railway volume add:*)"
+      "Bash(railway volume add:*)",
+      "Bash(npx:*)",
+      "Bash(npm ci:*)",
+      "mcp__Railway__deploy",
+      "mcp__Railway__generate-domain",
+      "Bash(railway status:*)",
+      "Bash(railway domain:*)",
+      "Bash(railway up:*)",
+      "Bash(agent-browser --help:*)",
+      "Bash(agent-browser --headed open:*)"
     ]
   }
 }

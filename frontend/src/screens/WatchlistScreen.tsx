@@ -8,13 +8,20 @@ import type { WatchlistItem as WatchlistItemType } from '../types';
 
 export function WatchlistScreen() {
   const { watchlist, isLoading, removeFromWatchlist } = useWatchlist();
-  const { openMarkSeenModal, setTab } = useUIStore();
+  const { openMarkSeenModal, openMovieDetailModal, setTab } = useUIStore();
 
   const handleMarkSeen = useCallback(
     (movie: WatchlistItemType) => {
       openMarkSeenModal(movie);
     },
     [openMarkSeenModal]
+  );
+
+  const handleCardClick = useCallback(
+    (movie: WatchlistItemType) => {
+      openMovieDetailModal(movie);
+    },
+    [openMovieDetailModal]
   );
 
   if (isLoading) {
@@ -55,6 +62,7 @@ export function WatchlistScreen() {
             movie={movie}
             onRemove={removeFromWatchlist}
             onMarkSeen={handleMarkSeen}
+            onClick={handleCardClick}
           />
         ))}
       </div>

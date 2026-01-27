@@ -16,6 +16,8 @@ from database import (
     create_or_update_review, get_user_reviews, get_movie_reviews,
     create_activity, get_friends_activity, get_user_activity,
     like_activity, unlike_activity, update_user_profile, get_user_stats,
+    # User discovery
+    search_users, get_suggested_users,
     # Generation tracking
     create_generation_job, update_generation_job, get_generation_job, get_average_generation_time
 )
@@ -1410,6 +1412,60 @@ def add_profile_friend(current_user):
             'success': True,
             'friend_id': friend_id,
             'message': f'Added {name} as a friend'
+        })
+
+    except Exception as e:
+        return jsonify({
+            'success': False,
+            'error': str(e)
+        }), 500
+
+
+# ============================================================
+# USER DISCOVERY
+# ============================================================
+
+@app.route('/api/users/search', methods=['GET'])
+@require_auth
+def api_search_users(current_user):
+    """Search users by username."""
+    try:
+        user_id = current_user['user_id']
+        query = request.args.get('q', '').strip()
+
+        if not query:
+            return jsonify({
+                'success': True,
+                'users': []
+            })
+
+        users = search_users(query, user_id)
+
+        return jsonify({
+            'success': True,
+            'users': users
+        })
+
+    except Exception as e:
+        return jsonify({
+            'success': False,
+            'error': str(e)
+        }), 500
+
+
+@app.route('/api/users/suggested', methods=['GET'])
+@require_auth
+def api_suggested_users(current_user):
+    """Get suggested users to follow."""
+    try:
+        user_id = current_user['user_id']
+        limit = request.args.get('limit', 10, type=int)
+
+        users = get_suggested_users(user_id, limit)
+
+        return jsonify({
+            'success': True,
+            'users': users
         })
 
     except Exception as e:

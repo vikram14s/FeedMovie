@@ -1347,6 +1347,73 @@ def get_user_stats(user_id: int) -> Dict[str, Any]:
     }
 
 
+def search_users(query: str, current_user_id: int, limit: int = 20) -> List[Dict[str, Any]]:
+    """Search users by username."""
+    conn = get_connection()
+    cursor = conn.cursor()
+
+    # Get users matching the query (excluding current user and curators)
+    cursor.execute('''
+        SELECT u.id, u.username, u.bio,
+               (SELECT COUNT(*) FROM ratings WHERE user_id = u.id) as movies_watched,
+               EXISTS(SELECT 1 FROM friends WHERE user_id = ? AND curator_username = u.username) as is_friend
+        FROM users u
+        WHERE u.username LIKE ?
+          AND u.id != ?
+          AND u.is_curator = 0
+        ORDER BY movies_watched DESC
+        LIMIT ?
+    ''', (current_user_id, f'%{query}%', current_user_id, limit))
+
+    users = []
+    for row in cursor.fetchall():
+        users.append({
+            'id': row['id'],
+            'username': row['username'],
+            'bio': row['bio'],
+            'movies_watched': row['movies_watched'],
+            'is_friend': bool(row['is_friend'])
+        })
+
+    conn.close()
+    return users
+
+
+def get_suggested_users(current_user_id: int, limit: int = 10) -> List[Dict[str, Any]]:
+    """Get suggested users to follow (users not already followed)."""
+    conn = get_connection()
+    cursor = conn.cursor()
+
+    # Get users not already followed, excluding curators, sorted by activity
+    cursor.execute('''
+        SELECT u.id, u.username, u.bio,
+               (SELECT COUNT(*) FROM ratings WHERE user_id = u.id) as movies_watched,
+               0 as is_friend
+        FROM users u
+        WHERE u.id != ?
+          AND u.is_curator = 0
+          AND NOT EXISTS(
+              SELECT 1 FROM friends
+              WHERE user_id = ? AND curator_username = u.username
+          )
+        ORDER BY movies_watched DESC
+        LIMIT ?
+    ''', (current_user_id, current_user_id, limit))
+
+    users = []
+    for row in cursor.fetchall():
+        users.append({
+            'id': row['id'],
+            'username': row['username'],
+            'bio': row['bio'],
+            'movies_watched': row['movies_watched'],
+            'is_friend': False
+        })
+
+    conn.close()
+    return users
+
+
 def get_user_library(user_id: int, limit: int = 100) -> List[Dict[str, Any]]:
     """Get user's rated movies (their library)."""
     conn = get_connection()

@@ -1,5 +1,5 @@
 import { useState, useEffect, useCallback } from 'react';
-import { X, Search, UserPlus, UserCheck } from 'lucide-react';
+import { X, Search, UserPlus, UserCheck, Users } from 'lucide-react';
 import { Button } from '../ui/Button';
 import { apiFetch, profileApi } from '../../api/client';
 
@@ -17,6 +17,49 @@ interface AddFriendsModalProps {
   onFriendAdded?: () => void;
 }
 
+// Helper component for rendering user items
+function UserResultItem({
+  user,
+  isAdding,
+  onAdd,
+}: {
+  user: UserResult;
+  isAdding: boolean;
+  onAdd: (user: UserResult) => void;
+}) {
+  const initial = user.username.charAt(0).toUpperCase();
+
+  return (
+    <div className="user-result-item">
+      <div className="user-result-avatar">{initial}</div>
+      <div className="user-result-info">
+        <div className="user-result-name">{user.username}</div>
+        <div className="user-result-stats">
+          {user.movies_watched} movies watched
+        </div>
+      </div>
+      <Button
+        variant={user.is_friend ? 'secondary' : 'primary'}
+        onClick={() => onAdd(user)}
+        disabled={user.is_friend || isAdding}
+        style={{ padding: '8px 16px', fontSize: '13px' }}
+      >
+        {user.is_friend ? (
+          <>
+            <UserCheck size={16} /> Following
+          </>
+        ) : isAdding ? (
+          'Adding...'
+        ) : (
+          <>
+            <UserPlus size={16} /> Follow
+          </>
+        )}
+      </Button>
+    </div>
+  );
+}
+
 export function AddFriendsModal({
   isOpen,
   onClose,
@@ -24,7 +67,9 @@ export function AddFriendsModal({
 }: AddFriendsModalProps) {
   const [searchQuery, setSearchQuery] = useState('');
   const [results, setResults] = useState<UserResult[]>([]);
+  const [suggestedUsers, setSuggestedUsers] = useState<UserResult[]>([]);
   const [isSearching, setIsSearching] = useState(false);
+  const [isLoadingSuggestions, setIsLoadingSuggestions] = useState(false);
   const [addingIds, setAddingIds] = useState<Set<number>>(new Set());
 
   // Close on escape
@@ -38,16 +83,36 @@ export function AddFriendsModal({
     return () => window.removeEventListener('keydown', handleEscape);
   }, [isOpen, onClose]);
 
-  // Reset state when modal closes
+  // Load suggested users when modal opens
   useEffect(() => {
-    if (!isOpen) {
+    if (isOpen) {
+      loadSuggestedUsers();
+    } else {
       setSearchQuery('');
       setResults([]);
     }
   }, [isOpen]);
 
+  const loadSuggestedUsers = async () => {
+    setIsLoadingSuggestions(true);
+    try {
+      const data = await apiFetch<{ success: boolean; users: UserResult[] }>(
+        '/users/suggested?limit=10'
+      );
+      setSuggestedUsers(data.users || []);
+    } catch (err) {
+      console.error('Error loading suggested users:', err);
+      setSuggestedUsers([]);
+    } finally {
+      setIsLoadingSuggestions(false);
+    }
+  };
+
   const handleSearch = useCallback(async () => {
-    if (!searchQuery.trim()) return;
+    if (!searchQuery.trim()) {
+      setResults([]);
+      return;
+    }
 
     setIsSearching(true);
     try {
@@ -69,6 +134,10 @@ export function AddFriendsModal({
       await profileApi.addFriend(user.username);
       // Update the result to show as friend
       setResults((prev) =>
+        prev.map((u) => (u.id === user.id ? { ...u, is_friend: true } : u))
+      );
+      // Also update suggested users list
+      setSuggestedUsers((prev) =>
         prev.map((u) => (u.id === user.id ? { ...u, is_friend: true } : u))
       );
       onFriendAdded?.();
@@ -120,56 +189,49 @@ export function AddFriendsModal({
           </div>
         </div>
 
-        {/* Results */}
-        <div className="search-results">
-          {isSearching ? (
+        {/* Results or Suggestions */}
+        <div className="search-results" style={{ maxHeight: '400px', overflowY: 'auto' }}>
+          {isSearching || isLoadingSuggestions ? (
             <p style={{ textAlign: 'center', color: 'var(--text-muted)', padding: '20px' }}>
-              Searching...
+              {isSearching ? 'Searching...' : 'Loading suggestions...'}
             </p>
           ) : results.length > 0 ? (
+            // Show search results
             <div className="user-results-list">
-              {results.map((user) => {
-                const initial = user.username.charAt(0).toUpperCase();
-                const isAdding = addingIds.has(user.id);
-
-                return (
-                  <div key={user.id} className="user-result-item">
-                    <div className="user-result-avatar">{initial}</div>
-                    <div className="user-result-info">
-                      <div className="user-result-name">{user.username}</div>
-                      <div className="user-result-stats">
-                        {user.movies_watched} movies watched
-                      </div>
-                    </div>
-                    <Button
-                      variant={user.is_friend ? 'secondary' : 'primary'}
-                      onClick={() => handleAddFriend(user)}
-                      disabled={user.is_friend || isAdding}
-                      style={{ padding: '8px 16px', fontSize: '13px' }}
-                    >
-                      {user.is_friend ? (
-                        <>
-                          <UserCheck size={16} /> Following
-                        </>
-                      ) : isAdding ? (
-                        'Adding...'
-                      ) : (
-                        <>
-                          <UserPlus size={16} /> Follow
-                        </>
-                      )}
-                    </Button>
-                  </div>
-                );
-              })}
+              {results.map((user) => (
+                <UserResultItem
+                  key={user.id}
+                  user={user}
+                  isAdding={addingIds.has(user.id)}
+                  onAdd={handleAddFriend}
+                />
+              ))}
             </div>
           ) : searchQuery ? (
             <p style={{ textAlign: 'center', color: 'var(--text-muted)', padding: '20px' }}>
               No users found
             </p>
+          ) : suggestedUsers.length > 0 ? (
+            // Show suggested users when no search
+            <>
+              <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '12px', color: 'var(--text-secondary)' }}>
+                <Users size={16} />
+                <span style={{ fontSize: '14px', fontWeight: '500' }}>Suggested for you</span>
+              </div>
+              <div className="user-results-list">
+                {suggestedUsers.map((user) => (
+                  <UserResultItem
+                    key={user.id}
+                    user={user}
+                    isAdding={addingIds.has(user.id)}
+                    onAdd={handleAddFriend}
+                  />
+                ))}
+              </div>
+            </>
           ) : (
             <p style={{ textAlign: 'center', color: 'var(--text-muted)', padding: '20px' }}>
-              Search for users by username
+              No users to suggest yet. Be the first to invite friends!
             </p>
           )}
         </div>
