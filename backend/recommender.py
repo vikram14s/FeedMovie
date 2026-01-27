@@ -142,35 +142,25 @@ def aggregate_recommendations(
 def enrich_with_tmdb(recommendations: List[Dict[str, Any]]) -> List[Dict[str, Any]]:
     """
     Enrich recommendations with TMDB data (metadata + streaming).
+    Runs enrichment in PARALLEL for faster results.
     """
-    print("\n🎬 Enriching recommendations with TMDB data...")
+    from concurrent.futures import ThreadPoolExecutor, as_completed
+    from tmdb_client import get_movie_details
+    import time
 
-    enriched = []
-    for rec in recommendations:
+    start_time = time.time()
+    print("\n🎬 Enriching recommendations with TMDB data...")
+    print(f"⚡ Processing {len(recommendations)} movies in PARALLEL\n")
+
+    def enrich_single(rec):
+        """Enrich a single recommendation with TMDB data."""
         title = rec['title']
         year = rec['year']
 
-        # If we have TMDB ID (from CF), fetch details directly
-        if rec.get('tmdb_id'):
-            print(f"   Fetching details: {title} ({year})...")
-            from tmdb_client import get_movie_details
-            movie_data = get_movie_details(rec['tmdb_id'])
-            rec['poster_path'] = movie_data['poster_path']
-            rec['genres'] = movie_data['genres']
-            rec['overview'] = movie_data['overview']
-            rec['streaming_providers'] = movie_data['streaming_providers']
-            rec['imdb_id'] = movie_data.get('imdb_id')
-            rec['tmdb_rating'] = movie_data.get('tmdb_rating')
-            rec['imdb_rating'] = movie_data.get('imdb_rating')
-            rec['rt_rating'] = movie_data.get('rt_rating')
-            enriched.append(rec)
-            print(f"      ✓ Enriched from TMDB")
-        else:
-            # Search TMDB by title/year
-            print(f"   Searching: {title} ({year})...")
-            movie_data = search_movie(title, year)
-            if movie_data:
-                rec['tmdb_id'] = movie_data['tmdb_id']
+        try:
+            if rec.get('tmdb_id'):
+                # If we have TMDB ID (from CF), fetch details directly
+                movie_data = get_movie_details(rec['tmdb_id'])
                 rec['poster_path'] = movie_data['poster_path']
                 rec['genres'] = movie_data['genres']
                 rec['overview'] = movie_data['overview']
@@ -179,22 +169,52 @@ def enrich_with_tmdb(recommendations: List[Dict[str, Any]]) -> List[Dict[str, An
                 rec['tmdb_rating'] = movie_data.get('tmdb_rating')
                 rec['imdb_rating'] = movie_data.get('imdb_rating')
                 rec['rt_rating'] = movie_data.get('rt_rating')
-                enriched.append(rec)
-                print(f"      ✓ Found on TMDB")
+                return ('success', rec, f"✓ {title}")
             else:
-                print(f"      ⚠️  Not found on TMDB, skipping")
+                # Search TMDB by title/year
+                movie_data = search_movie(title, year)
+                if movie_data:
+                    rec['tmdb_id'] = movie_data['tmdb_id']
+                    rec['poster_path'] = movie_data['poster_path']
+                    rec['genres'] = movie_data['genres']
+                    rec['overview'] = movie_data['overview']
+                    rec['streaming_providers'] = movie_data['streaming_providers']
+                    rec['imdb_id'] = movie_data.get('imdb_id')
+                    rec['tmdb_rating'] = movie_data.get('tmdb_rating')
+                    rec['imdb_rating'] = movie_data.get('imdb_rating')
+                    rec['rt_rating'] = movie_data.get('rt_rating')
+                    return ('success', rec, f"✓ {title}")
+                else:
+                    return ('not_found', None, f"⚠️  {title} not found")
+        except Exception as e:
+            return ('error', None, f"❌ {title}: {e}")
 
-    print(f"\n✅ Enriched {len(enriched)} movies with TMDB data")
+    enriched = []
+    # Use 4 workers to stay within TMDB rate limits (40 req/10s)
+    with ThreadPoolExecutor(max_workers=4) as executor:
+        futures = {executor.submit(enrich_single, rec): rec for rec in recommendations}
+
+        for future in as_completed(futures):
+            status, result, message = future.result()
+            print(f"   {message}")
+            if status == 'success' and result:
+                enriched.append(result)
+
+    elapsed = time.time() - start_time
+    print(f"\n✅ Enriched {len(enriched)} movies with TMDB data in {elapsed:.1f}s")
     return enriched
 
 
 def ensure_genre_diversity(enriched: List[Dict[str, Any]], ratings: List[Dict[str, Any]], min_per_genre: int = 5) -> List[Dict[str, Any]]:
     """
     Ensure at least min_per_genre movies for each major genre.
-    Generates additional recommendations for under-represented genres.
+    Generates additional recommendations for under-represented genres IN PARALLEL.
     """
     from collections import defaultdict
+    from concurrent.futures import ThreadPoolExecutor, as_completed
+    import time
 
+    start_time = time.time()
     print(f"\n🎨 Ensuring genre diversity (min {min_per_genre} per genre)...")
 
     # Major genres to ensure
@@ -226,16 +246,14 @@ def ensure_genre_diversity(enriched: List[Dict[str, Any]], ratings: List[Dict[st
         print("✅ All genres have sufficient coverage!")
         return enriched
 
-    # Generate additional recommendations for under-represented genres
-    print(f"\n🔄 Generating additional recommendations for {len(under_represented)} genres...")
+    # Generate additional recommendations for under-represented genres IN PARALLEL
+    print(f"\n🔄 Generating recommendations for {len(under_represented)} genres IN PARALLEL...")
 
-    from ai_ensemble import get_claude_recommendations
     existing_titles = {movie['title'].lower() for movie in enriched}
+    existing_titles_lock = __import__('threading').Lock()
 
-    for genre, needed in under_represented:
-        print(f"\n   Generating {needed} {genre} recommendations...")
-
-        # Create genre-specific prompt
+    def fill_genre(genre: str, needed: int, top_movies: List[str]) -> List[Dict[str, Any]]:
+        """Fill a single genre with recommendations."""
         genre_prompt_additions = {
             'Action': 'Focus on action-packed thrillers, heists, and intense sequences.',
             'Comedy': 'Focus on witty comedies, dark humor, and feel-good films.',
@@ -245,14 +263,12 @@ def ensure_genre_diversity(enriched: List[Dict[str, Any]], ratings: List[Dict[st
             'Drama': 'Focus on character-driven dramas and emotional stories.'
         }
 
-        # Get genre-specific recommendations from Claude
         try:
             import anthropic
             import json
             import os
 
             client = anthropic.Anthropic(api_key=os.getenv('ANTHROPIC_API_KEY'))
-            top_movies = [r['title'] for r in sorted(ratings, key=lambda x: x['rating'], reverse=True)[:10]]
 
             prompt = f"""Based on my movie taste (top favorites: {', '.join(top_movies)}), recommend exactly {needed + 5} {genre} movies I haven't seen.
 
@@ -284,33 +300,56 @@ Return only the JSON array."""
                 genre_recs = json.loads(content[start:end])
 
                 # Enrich and add non-duplicate movies
-                added = 0
+                added_movies = []
                 for rec in genre_recs:
-                    if added >= needed:
+                    if len(added_movies) >= needed:
                         break
 
                     title = rec.get('title', '')
-                    if title.lower() in existing_titles:
-                        continue
+
+                    # Thread-safe check and add
+                    with existing_titles_lock:
+                        if title.lower() in existing_titles:
+                            continue
+                        existing_titles.add(title.lower())
 
                     # Search TMDB
                     from tmdb_client import search_movie
                     movie_data = search_movie(title, rec.get('year'))
 
                     if movie_data and genre in movie_data.get('genres', []):
-                        # Add to enriched list
-                        movie_data['score'] = 0.5  # Lower score for genre-fill movies
+                        movie_data['score'] = 0.5
                         movie_data['sources'] = ['claude-genre-fill']
                         movie_data['reasons'] = [rec.get('reasoning', '')]
-                        enriched.append(movie_data)
-                        existing_titles.add(title.lower())
-                        added += 1
-                        print(f"      ✓ Added: {title}")
+                        added_movies.append(movie_data)
+                        print(f"      ✓ {genre}: {title}")
 
-                print(f"   ✅ Added {added} {genre} movies")
+                return added_movies
 
         except Exception as e:
             print(f"   ❌ Error generating {genre} recommendations: {e}")
+            return []
+
+        return []
+
+    # Prepare data for parallel execution
+    top_movies = [r['title'] for r in sorted(ratings, key=lambda x: x['rating'], reverse=True)[:10]]
+
+    # Run genre fills in parallel
+    with ThreadPoolExecutor(max_workers=len(under_represented)) as executor:
+        futures = {
+            executor.submit(fill_genre, genre, needed, top_movies): genre
+            for genre, needed in under_represented
+        }
+
+        for future in as_completed(futures):
+            genre = futures[future]
+            try:
+                new_movies = future.result()
+                enriched.extend(new_movies)
+                print(f"   ✅ Added {len(new_movies)} {genre} movies")
+            except Exception as e:
+                print(f"   ❌ {genre} failed: {e}")
 
     # Show final distribution
     genre_counts = defaultdict(int)
@@ -318,7 +357,8 @@ Return only the JSON array."""
         for genre in movie.get('genres', []):
             genre_counts[genre] += 1
 
-    print(f"\n📊 Final genre distribution:")
+    elapsed = time.time() - start_time
+    print(f"\n📊 Final genre distribution (completed in {elapsed:.1f}s):")
     for genre in target_genres:
         count = genre_counts[genre]
         status = "✓" if count >= min_per_genre else "⚠️"
@@ -331,11 +371,16 @@ def generate_and_save_recommendations(count: int = 15, user_id: int = None, job_
     """
     Main entry point: Generate recommendations from all sources and save to database.
 
+    Uses PARALLEL processing for AI calls, TMDB enrichment, and genre fills.
+
     Args:
         count: Number of recommendations to generate
         user_id: User ID to generate recommendations for (None for legacy single-user mode)
         job_id: Optional job ID for progress tracking
     """
+    import time
+    overall_start = time.time()
+
     def update_progress(stage: str, progress: int = None):
         """Update job progress if job_id provided."""
         if job_id:
@@ -345,6 +390,7 @@ def generate_and_save_recommendations(count: int = 15, user_id: int = None, job_
 
     print("\n" + "=" * 60)
     print("🎬 FEEDMOVIE RECOMMENDATION ENGINE")
+    print("⚡ PARALLEL MODE ENABLED")
     print("=" * 60)
     if user_id:
         print(f"   Generating for user_id: {user_id}")
@@ -513,11 +559,13 @@ def generate_and_save_recommendations(count: int = 15, user_id: int = None, job_
     print(f"   ✅ Saved {saved_count} recommendations ({len(unwatched)} new + {len(watched_to_include)} watched)")
 
     # Show summary
+    total_elapsed = time.time() - overall_start
     print("\n" + "=" * 60)
     print("✅ RECOMMENDATION GENERATION COMPLETE!")
     print("=" * 60)
-    print(f"\nGenerated {saved_count} recommendations")
-    print(f"Next step: python backend/app.py to start the web server")
+    print(f"\nGenerated {saved_count} recommendations in {total_elapsed:.1f}s")
+    print(f"⚡ Parallel processing saved significant time!")
+    print(f"\nNext step: python backend/app.py to start the web server")
     print(f"Or query database: sqlite3 data/feedmovie.db")
 
     # Mark job as completed

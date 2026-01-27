@@ -313,6 +313,8 @@ def get_all_ai_recommendations(ratings: List[Dict[str, Any]], count_per_model: i
     """
     Get recommendations from all available AI models with enhanced taste profiles.
 
+    Runs all AI model calls in PARALLEL for maximum speed.
+
     Args:
         ratings: User's movie ratings
         count_per_model: Number of recommendations per AI model
@@ -325,7 +327,12 @@ def get_all_ai_recommendations(ratings: List[Dict[str, Any]], count_per_model: i
             'gemini': [...]
         }
     """
+    from concurrent.futures import ThreadPoolExecutor, as_completed
+    import time
+
+    start_time = time.time()
     print("\n🎬 Generating AI recommendations with enhanced taste profile...\n")
+    print("⚡ Running AI models in PARALLEL for faster results\n")
 
     # Auto-generate friend context if not provided
     if friend_context is None:
@@ -337,20 +344,42 @@ def get_all_ai_recommendations(ratings: List[Dict[str, Any]], count_per_model: i
     friend_context = friend_context or ""
 
     results = {
-        'claude': get_claude_recommendations(ratings, count_per_model, friend_context),
-        'gemini': get_gemini_recommendations(ratings, count_per_model, friend_context)
+        'claude': [],
+        'chatgpt': [],
+        'gemini': []
     }
+
+    # Define tasks to run in parallel
+    tasks = [
+        ('claude', get_claude_recommendations, ratings, count_per_model, friend_context),
+        ('gemini', get_gemini_recommendations, ratings, count_per_model, friend_context),
+    ]
 
     # Only add ChatGPT if OpenAI key is available
     if OPENAI_KEY:
-        results['chatgpt'] = get_chatgpt_recommendations(ratings, count_per_model, friend_context)
+        tasks.append(('chatgpt', get_chatgpt_recommendations, ratings, count_per_model, friend_context))
     else:
         print("⚠️  OpenAI API key not set, skipping ChatGPT (Claude and Gemini only)")
-        results['chatgpt'] = []
 
+    # Run all AI calls in parallel
+    with ThreadPoolExecutor(max_workers=3) as executor:
+        future_to_model = {
+            executor.submit(func, r, c, f): model_name
+            for model_name, func, r, c, f in tasks
+        }
+
+        for future in as_completed(future_to_model):
+            model_name = future_to_model[future]
+            try:
+                results[model_name] = future.result()
+            except Exception as e:
+                print(f"   ❌ {model_name} failed: {e}")
+                results[model_name] = []
+
+    elapsed = time.time() - start_time
     total = sum(len(v) for v in results.values())
     active_models = sum(1 for v in results.values() if v)
-    print(f"\n✅ Total AI recommendations: {total} from {active_models} models")
+    print(f"\n✅ Total AI recommendations: {total} from {active_models} models in {elapsed:.1f}s")
     print(f"   Claude: {len(results['claude'])}")
     print(f"   ChatGPT: {len(results['chatgpt'])}")
     print(f"   Gemini: {len(results['gemini'])}")
